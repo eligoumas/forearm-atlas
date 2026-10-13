@@ -393,10 +393,12 @@ function showInfo(key, extraKey, subText) {
 const statusEl = $('#status');
 function setStatus(state, text) { statusEl.dataset.state = state; statusEl.textContent = text; }
 
-// The webcam only works when the page runs on your own computer; anywhere else the demo hand runs.
-if (!['localhost', '127.0.0.1', '[::1]', ''].includes(location.hostname)) {
+// The webcam needs a secure page opened directly (localhost or an https site such as GitHub Pages). Embedded in
+// another page (a shared Claude artifact, for one) the browser refuses it, so the demo hand runs instead.
+const canCamera = (() => { try { return window.isSecureContext && !!navigator.mediaDevices?.getUserMedia && window.top === window; } catch { return false; } })();
+if (!canCamera) {
   $('#camBtn').hidden = true; $('#camBtn2').hidden = true;
-  $('#notice').querySelector('p').textContent = 'It cycles through finger waves, a fist, a spread and a pinch. Live camera tracking runs when the page is opened on your own computer.';
+  $('#notice').querySelector('p').textContent = 'It cycles through finger waves, a fist, a spread and a pinch. Open the page on its own (not embedded) to use your camera.';
 }
 
 // ================= camera + tracking =================
