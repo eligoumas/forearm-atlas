@@ -1,0 +1,1188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Forearm Atlas</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:ital,opsz,wght@1,6..72,400;1,6..72,500&display=swap">
+<style>
+/* Layout: a lightbox stage (live camera + anatomy overlay) beside an atlas plate (3D model + muscle activity). Single dark look, chosen on purpose: it reads like film on a viewing box. */
+:root{
+  --ground:#0e1519; --panel:#141d22; --raise:#1b262c; --line:#28363e;
+  --text:#e3e9ea; --muted:#8fa1a8; --plane:#8fd3df;
+  --muscle:#b8443e; --hot:#ff6a42; --tendon:#e4eaec; --bone:#ecdfc4; --nerve:#e2b33c; --artery:#d0393c; --vein:#4d74bd; --fat:#b39a5e;
+  --f-display:'Newsreader', Georgia, 'Times New Roman', serif;
+  --f-body:'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --f-mono:'IBM Plex Mono', ui-monospace, Consolas, monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--text);font:15px/1.5 var(--f-body);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1480px;margin:0 auto;padding-inline:20px;padding-block:18px 32px;display:flex;flex-direction:column;gap:16px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px}
+.brand h1{margin:0;font:italic 500 34px/1.05 var(--f-display);letter-spacing:-.01em}
+.brand p{margin:4px 0 0;color:var(--muted);font-size:14px;max-width:62ch}
+.head-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{font:500 12px/1 var(--f-mono);letter-spacing:.04em;padding:7px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);display:inline-flex;align-items:center;gap:8px;background:var(--panel)}
+.chip::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--muted)}
+.chip[data-state="live"]{color:var(--text)} .chip[data-state="live"]::before{background:#5fd08a;box-shadow:0 0 8px #5fd08a}
+.chip[data-state="loading"]::before{background:var(--nerve)}
+.chip[data-state="error"]{color:#ffb4a8} .chip[data-state="error"]::before{background:var(--hot)}
+.chip[data-state="demo"]::before{background:var(--plane)}
+button,select{font:inherit;color:inherit}
+.btn{border:1px solid var(--line);background:var(--raise);padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:500;font-size:14px}
+.btn:hover{border-color:#3d4f59}
+.btn.primary{background:var(--plane);color:#0b1417;border-color:var(--plane)}
+.btn.primary:hover{filter:brightness(1.08)}
+:focus-visible{outline:2px solid var(--plane);outline-offset:2px}
+
+.layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(320px,1fr);gap:20px;align-items:start}
+@media (max-width:980px){.layout{grid-template-columns:minmax(0,1fr)}}
+
+.stage-col{display:flex;flex-direction:column;gap:10px;min-width:0}
+.stage{position:relative;width:100%;aspect-ratio:16/10;max-height:76vh;border-radius:8px;overflow:hidden;background:#0a1013;border:1px solid var(--line)}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+.stage video{display:none}
+.stage #view3d{pointer-events:none;transition:opacity .25s}
+.stags{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.notice{position:absolute;left:14px;top:14px;max-width:min(300px,calc(100% - 28px));background:rgba(12,19,23,.86);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;backdrop-filter:blur(6px)}
+.notice strong{font:italic 500 18px/1.2 var(--f-display)}
+.notice p{margin:0;font-size:13px;color:var(--muted)}
+.notice .btn{align-self:flex-start}
+.hud{position:absolute;left:12px;bottom:12px;display:flex;gap:10px;align-items:flex-end;background:rgba(12,19,23,.72);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.gauge{display:flex;flex-direction:column;align-items:center;gap:4px;font:500 10px/1 var(--f-mono);color:var(--muted)}
+.gauge .bar{width:7px;height:44px;border-radius:4px;background:#24323a;position:relative;overflow:hidden}
+.gauge .bar i{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(var(--hot),var(--muscle));border-radius:4px}
+.readout{position:absolute;right:12px;bottom:12px;font:11px/1.5 var(--f-mono);color:var(--muted);text-align:right;background:rgba(12,19,23,.72);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.readout b{color:var(--text);font-weight:500}
+
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ctl-label{font:500 11px/1 var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--panel)}
+.seg button{border:0;background:transparent;padding:6px 11px;cursor:pointer;font-size:13px;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--raise);color:var(--text);box-shadow:inset 0 -2px 0 var(--plane)}
+.toggle{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;padding:5px 9px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.toggle input{accent-color:var(--plane);margin:0}
+.toggle:has(input:checked){color:var(--text)}
+select{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px}
+
+.plate{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.plate-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:10px}
+.eyebrow{font:500 11px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--plane)}
+.plate h2{margin:4px 0 0;font:italic 500 24px/1.1 var(--f-display);text-wrap:balance}
+.model-wrap{position:relative;width:100%;aspect-ratio:1/1;max-height:66vh;border-radius:6px;overflow:hidden;background:#10181c;border:1px solid var(--line);touch-action:none}
+.model-wrap canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab}
+.model-wrap canvas:active{cursor:grabbing}
+.mstate{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:var(--muted);font-size:13px}
+.mviews{position:absolute;left:8px;top:8px;display:flex;gap:4px}
+.mviews button{border:1px solid var(--line);background:rgba(12,19,23,.78);color:var(--muted);font:500 11px/1 var(--f-mono);padding:6px 8px;border-radius:5px;cursor:pointer}
+.mviews button[aria-pressed="true"]{color:var(--text);border-color:var(--plane)}
+.mfoot{position:absolute;left:8px;right:8px;bottom:8px;display:flex;justify-content:space-between;gap:8px;font:10px/1.3 var(--f-mono);color:rgba(143,161,168,.8);pointer-events:none}
+.mtags{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.mtag{position:absolute;transform:translate(-50%,-140%);font:500 10px/1 var(--f-mono);color:#ffd2c4;background:rgba(12,19,23,.84);border:1px solid rgba(255,150,120,.55);border-radius:4px;padding:3px 5px;white-space:nowrap}
+.info{min-height:76px;border-left:2px solid var(--line);padding:2px 0 2px 12px}
+.info h4{margin:0;font-size:15px;font-weight:600}
+.info p{margin:2px 0 0;font-size:13px;color:var(--muted);max-width:60ch}
+.info .nerve{font:12px/1.4 var(--f-mono);color:var(--nerve);margin-top:4px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.plate h3{margin:4px 0 0;font:500 11px/1 var(--f-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.rows{display:flex;flex-direction:column;gap:2px}
+.row{display:grid;grid-template-columns:minmax(0,1fr) 128px;gap:10px;align-items:center;padding:5px 6px;border-radius:5px;cursor:default}
+.row:hover{background:var(--raise)}
+.row .nm{min-width:0}
+.row .nm b{font-weight:500;font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .nm small{font:11px/1.3 var(--f-mono);color:var(--muted)}
+.row.on .nm b{color:#ffd7cc}
+.bars{display:flex;gap:3px;align-items:flex-end}
+.bars .b{flex:1;display:flex;flex-direction:column;gap:2px;align-items:center}
+.bars .t{width:100%;height:8px;background:#24323a;border-radius:2px;overflow:hidden}
+.bars .t i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--muscle),var(--hot))}
+.bars .b small{font:9px/1 var(--f-mono);color:var(--muted)}
+footer{color:var(--muted);font-size:12.5px;max-width:110ch;border-top:1px solid var(--line);padding-top:12px}
+footer b{color:var(--text);font-weight:500}
+kbd{font:11px var(--f-mono);border:1px solid var(--line);border-radius:3px;padding:1px 4px;background:var(--raise)}
+@media (max-width:520px){.brand h1{font-size:28px}.hud{gap:6px;padding:6px 8px}.readout{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <h1>Forearm Atlas</h1>
+      <p>Hold your forearm up to the camera and move your fingers. The overlay and the 3D model show which muscles and tendons are doing the work.</p>
+    </div>
+    <div class="head-actions">
+      <span class="chip" id="status" data-state="demo">Demo hand</span>
+      <button class="btn primary" id="camBtn" type="button">Turn on camera</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="stage-col">
+      <div class="stage" id="stage">
+        <video id="video" playsinline muted></video>
+        <canvas id="view"></canvas>
+        <canvas id="view3d" aria-hidden="true"></canvas>
+        <div class="stags" id="stags"></div>
+        <div class="notice" id="notice">
+          <strong>This is a demo hand.</strong>
+          <p>Turn on your camera, rest your elbow on the desk so your forearm and hand are in view, then wiggle your fingers.</p>
+          <button class="btn primary" id="camBtn2" type="button">Turn on camera</button>
+        </div>
+        <div class="hud" id="hud" aria-label="Finger bend"></div>
+        <div class="readout" id="readout"></div>
+      </div>
+      <div class="controls">
+        <div class="ctl"><span class="ctl-label">View</span>
+          <div class="seg" id="modeSeg">
+            <button type="button" data-v="skin" aria-pressed="false">Skin</button>
+            <button type="button" data-v="atlas" aria-pressed="true">Atlas</button>
+            <button type="button" data-v="xray" aria-pressed="false">X-ray</button>
+          </div>
+        </div>
+        <div class="ctl"><span class="ctl-label">Layers</span>
+          <label class="toggle"><input type="checkbox" id="lyMuscles" checked>Muscles</label>
+          <label class="toggle"><input type="checkbox" id="lyTendons" checked>Tendons</label>
+          <label class="toggle"><input type="checkbox" id="lyBones" checked>Bones</label>
+          <label class="toggle"><input type="checkbox" id="lyNerves" checked>Nerves &amp; vessels</label>
+        </div>
+        <div class="ctl"><label class="ctl-label" for="armSel">Arm</label>
+          <select id="armSel"><option value="auto">Detect</option><option value="Right">Right</option><option value="Left">Left</option></select>
+        </div>
+      </div>
+    </section>
+
+    <aside class="plate">
+      <div class="plate-head">
+        <div><div class="eyebrow">3D model</div><h2 id="secTitle">Forearm</h2></div>
+        <div class="seg" id="levelSeg">
+          <button type="button" data-v="palm" aria-pressed="false">Hand</button>
+          <button type="button" data-v="wrist" aria-pressed="false">Wrist</button>
+          <button type="button" data-v="mid" aria-pressed="true">Forearm</button>
+        </div>
+      </div>
+      <div class="model-wrap" id="modelWrap">
+        <canvas id="model" aria-label="3D model of the forearm and hand. Drag to turn it."></canvas>
+        <div class="mtags" id="mtags"></div>
+        <div class="mviews" id="viewSeg">
+          <button type="button" data-v="palm" aria-pressed="true">Palm side</button>
+          <button type="button" data-v="back" aria-pressed="false">Back</button>
+          <button type="button" data-v="thumb" aria-pressed="false">Thumb side</button>
+        </div>
+        <div class="mfoot"><span id="mside">Right arm</span><span>Drag to turn · scroll to zoom</span></div>
+        <div class="mstate" id="mstate">Loading model…</div>
+      </div>
+      <div class="info" id="info"></div>
+      <div class="legend">
+        <span><i style="background:var(--muscle)"></i>Muscle</span>
+        <span><i style="background:var(--hot);box-shadow:0 0 6px var(--hot)"></i>Working</span>
+        <span><i style="background:var(--tendon)"></i>Tendon</span>
+        <span><i style="background:var(--bone)"></i>Bone</span>
+        <span><i style="background:var(--nerve)"></i>Nerve</span>
+        <span><i style="background:var(--artery)"></i>Artery</span>
+        <span><i style="background:var(--vein)"></i>Vein</span>
+      </div>
+      <h3>Muscle activity in this region</h3>
+      <div class="rows" id="rows"></div>
+    </aside>
+  </main>
+
+  <footer>
+    <b>What you're seeing.</b> A camera can't see under skin. The app tracks 21 points on your hand (and your elbow when it can find it), fits a standard anatomical model to them, and estimates which muscles are working from how fast and how far each joint bends. Shapes and activity are approximations for learning, not a medical image. Video is processed in your browser and is not uploaded.
+    Keys: <kbd>1</kbd> hand, <kbd>2</kbd> wrist, <kbd>3</kbd> forearm, <kbd>V</kbd> change view. Drag the 3D model to turn it; it copies your finger movements.
+  </footer>
+</div>
+
+<script type="module">
+// ================= math =================
+const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
+const smooth = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0)); return t * t * (3 - 2 * t); };
+const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
+const mul = (a, k) => ({ x: a.x * k, y: a.y * k });
+const dot2 = (a, b) => a.x * b.x + a.y * b.y;
+const len2 = a => Math.hypot(a.x, a.y);
+const norm2 = a => { const l = len2(a) || 1; return { x: a.x / l, y: a.y / l }; };
+const lerp2 = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+const sub3 = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+const len3 = a => Math.hypot(a.x, a.y, a.z);
+const norm3 = a => { const l = len3(a) || 1; return { x: a.x / l, y: a.y / l, z: a.z / l }; };
+const dot3 = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+const cross3 = (a, b) => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
+const ang3 = (u, w) => Math.acos(clamp(dot3(norm3(u), norm3(w)), -1, 1));
+const bend3 = (a, b, c) => ang3(sub3(b, a), sub3(c, b));
+function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// ================= anatomy reference =================
+const FING = { i: [5, 6, 7, 8], m: [9, 10, 11, 12], r: [13, 14, 15, 16], p: [17, 18, 19, 20] };
+const FNAME = { i: 'index', m: 'middle', r: 'ring', p: 'little' };
+const INFO = {
+  FDS: { abbr: 'FDS', name: 'Flexor digitorum superficialis', act: 'Bends the middle knuckle of each finger. One belly, four tendons.', nerve: 'Median nerve' },
+  FDP: { abbr: 'FDP', name: 'Flexor digitorum profundus', act: 'Bends the fingertips. The only muscle that can curl the last joint.', nerve: 'Median (index, middle) and ulnar (ring, little)' },
+  FPL: { abbr: 'FPL', name: 'Flexor pollicis longus', act: 'Bends the tip of the thumb.', nerve: 'Anterior interosseous (median)' },
+  FCR: { abbr: 'FCR', name: 'Flexor carpi radialis', act: 'Bends the wrist and tilts it toward the thumb.', nerve: 'Median nerve' },
+  PL: { abbr: 'PL', name: 'Palmaris longus', act: 'Tightens the palm\'s fascia; weak wrist flexor. Missing in about 1 in 7 people.', nerve: 'Median nerve' },
+  FCU: { abbr: 'FCU', name: 'Flexor carpi ulnaris', act: 'Bends the wrist and tilts it toward the little finger.', nerve: 'Ulnar nerve' },
+  BR: { abbr: 'BR', name: 'Brachioradialis', act: 'Bends the elbow, strongest with the thumb pointing up. Helps steady a grip.', nerve: 'Radial nerve' },
+  ED: { abbr: 'ED', name: 'Extensor digitorum', act: 'Straightens the four fingers. Its tendons are the cords on the back of your hand.', nerve: 'Posterior interosseous (radial)' },
+  EDM: { abbr: 'EDM', name: 'Extensor digiti minimi', act: 'Straightens the little finger on its own.', nerve: 'Posterior interosseous (radial)' },
+  EIP: { abbr: 'EIP', name: 'Extensor indicis', act: 'Straightens the index finger on its own, as in pointing.', nerve: 'Posterior interosseous (radial)' },
+  ECU: { abbr: 'ECU', name: 'Extensor carpi ulnaris', act: 'Lifts the wrist and tilts it toward the little finger.', nerve: 'Posterior interosseous (radial)' },
+  ECRL: { abbr: 'ECRL', name: 'Extensor carpi radialis longus', act: 'Lifts the wrist and tilts it toward the thumb.', nerve: 'Radial nerve' },
+  ECRB: { abbr: 'ECRB', name: 'Extensor carpi radialis brevis', act: 'Lifts and steadies the wrist whenever you grip. The usual site of tennis elbow.', nerve: 'Radial nerve (deep branch)' },
+  APL: { abbr: 'APL', name: 'Abductor pollicis longus', act: 'Swings the thumb out away from the palm.', nerve: 'Posterior interosseous (radial)' },
+  EPB: { abbr: 'EPB', name: 'Extensor pollicis brevis', act: 'Straightens the base of the thumb.', nerve: 'Posterior interosseous (radial)' },
+  EPL: { abbr: 'EPL', name: 'Extensor pollicis longus', act: 'Straightens the thumb tip; hooks around a bump on the radius (Lister\'s tubercle).', nerve: 'Posterior interosseous (radial)' },
+  LUM: { abbr: 'Lum', name: 'Lumbrical', plural: 'Lumbricals',act: 'Bends the knuckle while keeping the finger straight. Starts on the FDP tendons.', nerve: 'Median (1st, 2nd) and ulnar (3rd, 4th)' },
+  DI: { abbr: 'DI', name: 'Dorsal interosseous', plural: 'Dorsal interossei', act: 'Spreads the fingers apart. The first one also powers a pinch.', nerve: 'Ulnar nerve (deep branch)' },
+  PI: { abbr: 'PI', name: 'Palmar interosseous', plural: 'Palmar interossei',act: 'Pulls the fingers back together.', nerve: 'Ulnar nerve (deep branch)' },
+  ADP: { abbr: 'AdP', name: 'Adductor pollicis', act: 'Pulls the thumb against the palm; the strength in a key pinch.', nerve: 'Ulnar nerve (deep branch)' },
+  THEN: { abbr: 'Thenar', name: 'Thenar muscles', act: 'The pad below the thumb (APB, FPB, opponens). Turns the thumb to touch the other fingertips.', nerve: 'Median nerve (recurrent branch)' },
+  HYPO: { abbr: 'Hypoth.', name: 'Hypothenar muscles', act: 'The pad below the little finger. Spreads and cups the little finger.', nerve: 'Ulnar nerve' },
+  radius: { name: 'Radius', act: 'Forearm bone on the thumb side. It rolls around the ulna when you turn your palm over.' },
+  ulna: { name: 'Ulna', act: 'Forearm bone on the little-finger side. Its top end is the point of your elbow.' },
+  trapezium: { name: 'Trapezium', act: 'Carpal bone at the base of the thumb; its saddle joint lets the thumb swing across the palm.' },
+  trapezoid: { name: 'Trapezoid', act: 'Small carpal bone at the base of the index metacarpal.' },
+  capitate: { name: 'Capitate', act: 'The largest carpal bone, at the center of the wrist.' },
+  hamate: { name: 'Hamate', act: 'Carpal bone with a hook that forms the ulnar wall of the carpal tunnel.' },
+  MC: { name: 'Metacarpal', act: 'One of the five long bones of the palm.' },
+  median: { name: 'Median nerve', act: 'Feeling in the thumb, index, middle and half the ring finger. Squeezed in carpal tunnel syndrome.' },
+  ulnarN: { name: 'Ulnar nerve', act: 'Feeling in the little finger; runs most of the small hand muscles. The "funny bone" nerve.' },
+  radialN: { name: 'Superficial radial nerve', act: 'Feeling on the back of the hand on the thumb side.' },
+  AIN: { name: 'Anterior interosseous nerve', act: 'Median branch to FPL and the index and middle parts of FDP.' },
+  PIN: { name: 'Posterior interosseous nerve', act: 'Deep radial branch that runs the finger and thumb extensors.' },
+  radialA: { name: 'Radial artery', act: 'The wrist pulse you feel below the thumb.' },
+  ulnarA: { name: 'Ulnar artery', act: 'Main supply to the superficial palmar arch.' },
+  AIA: { name: 'Anterior interosseous artery', act: 'Runs on the membrane between the two bones.' },
+  cephalic: { name: 'Cephalic vein', act: 'Superficial vein on the thumb side, in the fat under the skin.' },
+  basilic: { name: 'Basilic vein', act: 'Superficial vein on the little-finger side.' },
+  mav: { name: 'Median antebrachial vein', act: 'Superficial vein down the middle of the palm side.' },
+  digitalN: { name: 'Digital nerve', act: 'Median and ulnar branches that run down both sides of each finger and give it feeling.' },
+  arch: { name: 'Superficial palmar arch', act: 'Arterial loop mostly from the ulnar artery; its branches run down the sides of the fingers.' },
+  scaphoid: { name: 'Scaphoid', act: 'Carpal bone under the hollow at the base of the thumb; the wrist bone most often broken in a fall.' },
+  lunate: { name: 'Lunate', act: 'Half-moon carpal bone in the middle of the wrist, right under the radius.' },
+  triquetrum: { name: 'Triquetrum', act: 'Pyramid-shaped carpal bone on the little-finger side of the wrist.' },
+  pisiform: { name: 'Pisiform', act: 'Pea-sized bone you can feel at the heel of the hand. FCU pulls on it.' },
+  phalanx: { name: 'Phalanx', act: 'A finger bone. Each finger has three; the thumb has two.' },
+  PT: { abbr: 'PT', name: 'Pronator teres', act: 'Turns the palm down and helps bend the elbow.', nerve: 'Median nerve' },
+  SUP: { abbr: 'Sup', name: 'Supinator', act: 'Wraps the top of the radius and turns the palm up.', nerve: 'Posterior interosseous (radial)' },
+  PQ: { abbr: 'PQ', name: 'Pronator quadratus', act: 'Square muscle across the bottom of the forearm; the main muscle for turning the palm down.', nerve: 'Anterior interosseous (median)' },
+  dorsalV: { name: 'Dorsal venous network', act: 'The veins you can see on the back of your hand. Finger veins feed an arch that drains into the cephalic and basilic veins.' },
+  medianCubital: { name: 'Median cubital vein', act: 'Crosses the inside of the elbow from the cephalic to the basilic vein. The usual vein for a blood draw.' },
+  accCephalic: { name: 'Accessory cephalic vein', act: 'A smaller vein on the back of the forearm that joins the cephalic vein near the elbow.' },
+  tributary: { name: 'Superficial vein', act: 'One of the small veins under the skin that feed the main forearm veins. Their pattern differs from person to person.' },
+  comitantes: { name: 'Venae comitantes', act: 'Pairs of small deep veins that travel alongside the radial and ulnar arteries.' },
+  deepArch: { name: 'Deep palmar arch', act: 'Arterial loop from the radial artery, lying under the flexor tendons; sends branches to the finger webs.' },
+  dorsalArch: { name: 'Dorsal carpal arch', act: 'Arterial loop across the back of the wrist that feeds the back of the hand and fingers.' },
+  LABC: { name: 'Lateral antebrachial cutaneous nerve', act: 'Skin nerve on the thumb side of the forearm; the end of the musculocutaneous nerve.' },
+  MABC: { name: 'Medial antebrachial cutaneous nerve', act: 'Skin nerve on the little-finger side of the forearm.' },
+  dorsalUlnarN: { name: 'Dorsal branch of the ulnar nerve', act: 'Feeling on the back of the hand on the little-finger side.' },
+  membrane: { name: 'Interosseous membrane', act: 'Sheet of tough fibres between the radius and ulna. Several deep muscles start from it.' },
+  retinaculum: { name: 'Flexor retinaculum', act: 'Tough band across the front of the wrist bones: the roof of the carpal tunnel.' },
+  extRetinaculum: { name: 'Extensor retinaculum', act: 'Band across the back of the wrist that keeps the extensor tendons in their six tunnels.' },
+};
+const SUBLAB = { i: 'I', m: 'M', r: 'R', p: 'L' };
+function baseOf(key) { const m = key.match(/^([A-Z]+?)(_[imrp]|\d)?$/); return m ? m[1] : key; }
+function labelFor(key) {
+  const [b, s] = key.split('_');
+  if (s) return `${INFO[b].abbr} · ${FNAME[s]}`;
+  const n = key.match(/^(DI|PI)(\d)$/); if (n) return `${INFO[n[1]].abbr}${n[2]}`;
+  return INFO[key] ? INFO[key].abbr : key;
+}
+const ACT_KEYS = [...['FDS', 'FDP', 'ED', 'LUM'].flatMap(b => 'imrp'.split('').map(s => b + '_' + s)),
+  'FPL', 'EPL', 'EPB', 'APL', 'EIP', 'EDM', 'FCR', 'PL', 'FCU', 'ECRL', 'ECRB', 'ECU', 'BR',
+  'DI1', 'DI2', 'DI3', 'DI4', 'PI1', 'PI2', 'PI3', 'ADP', 'THEN', 'HYPO'];
+
+// Regions the 3D model can zoom to. Focus points are in the model's frame (metres): x toward the little finger,
+// y from elbow to fingertips, z out of the palm. Keys match ROWS and the 1/2/3 shortcuts.
+const REGIONS = {
+  mid: { title: 'Forearm', focus: [-0.006, 0.17, 0.0], dist: 0.95,
+    blurb: 'About twenty muscles fill the forearm. The finger flexors sit in two layers on the palm side, the extensors fan across the back, and a membrane ties the radius to the ulna. Most of the muscles that move your fingers live here, not in the hand.' },
+  wrist: { title: 'Wrist · carpal tunnel', focus: [-0.004, 0.275, 0.004], dist: 0.3,
+    blurb: 'Nine flexor tendons and the median nerve squeeze through the carpal tunnel, under a tough band of ligament across the wrist bones. Watch the tendons light up as each finger bends.' },
+  palm: { title: 'Hand', focus: [-0.016, 0.335, 0.006], dist: 0.42,
+    blurb: 'In the hand the long tendons run out to each finger, beside the small muscles that spread, close and fine-tune the fingers and thumb.' },
+};
+
+const ROWS = {
+  mid: [['FDS', 'f'], ['FDP', 'f'], ['FPL'], ['FCR'], ['PL'], ['FCU'], ['BR'], ['ED', 'f'], ['EIP'], ['EDM'], ['ECU'], ['ECRL'], ['ECRB'], ['APL'], ['EPB'], ['EPL']],
+  wrist: [['FDS', 'f'], ['FDP', 'f'], ['FPL'], ['FCR'], ['PL'], ['THEN'], ['HYPO'], ['ED', 'f'], ['EIP'], ['EDM'], ['ECU'], ['ECRL'], ['ECRB'], ['EPL'], ['APL'], ['EPB']],
+  palm: [['DI', 'n4'], ['PI', 'n3'], ['LUM', 'f'], ['ADP'], ['THEN'], ['HYPO'], ['FDS', 'f'], ['FDP', 'f'], ['ED', 'f']],
+};
+function rowKeys(r) {
+  const [b, t] = r;
+  if (t === 'f') return 'imrp'.split('').map(s => [b + '_' + s, SUBLAB[s]]);
+  if (t === 'n4') return [1, 2, 3, 4].map(n => [b + n, String(n)]);
+  if (t === 'n3') return [1, 2, 3].map(n => [b + n, String(n)]);
+  return [[b, '']];
+}
+
+// ================= state =================
+const S = { mode: 'atlas', level: 'mid', running: false, side: 'Right', armPref: 'auto',
+  layers: { muscles: true, tendons: true, bones: true, nerves: true } };
+const act = Object.fromEntries(ACT_KEYS.map(k => [k, 0]));
+const phase = {};
+let vel = {}, prevM = null, prevMT = 0, lastM = null;
+
+const $ = s => document.querySelector(s);
+const video = $('#video'), view = $('#view'), vctx = view.getContext('2d');
+const flesh = document.createElement('canvas'), fctx = flesh.getContext('2d');
+let dpr = 1, stW = 0, stH = 0;
+
+function resize() {
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  const r = view.getBoundingClientRect(); stW = r.width; stH = r.height;
+  view.width = flesh.width = Math.round(stW * dpr); view.height = flesh.height = Math.round(stH * dpr);
+}
+new ResizeObserver(resize).observe($('#stage'));
+
+// ================= UI wiring =================
+function setSeg(seg, v) { seg.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v))); }
+$('#modeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; S.mode = b.dataset.v; setSeg($('#modeSeg'), S.mode); });
+$('#levelSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; setLevel(b.dataset.v); });
+for (const [id, k] of [['#lyMuscles', 'muscles'], ['#lyTendons', 'tendons'], ['#lyBones', 'bones'], ['#lyNerves', 'nerves']])
+  $(id).addEventListener('change', e => { S.layers[k] = e.target.checked; });
+$('#armSel').addEventListener('change', e => { S.armPref = e.target.value; });
+addEventListener('keydown', e => {
+  if (e.target.closest('input,select,textarea')) return;
+  if (e.key === '1') setLevel('palm'); else if (e.key === '2') setLevel('wrist'); else if (e.key === '3') setLevel('mid');
+  else if (e.key === 'v' || e.key === 'V') { const o = ['skin', 'atlas', 'xray']; S.mode = o[(o.indexOf(S.mode) + 1) % 3]; setSeg($('#modeSeg'), S.mode); }
+});
+
+const hud = $('#hud'); const gaugeEls = {};
+for (const [k, l] of [['t', 'T'], ['i', 'I'], ['m', 'M'], ['r', 'R'], ['p', 'L']]) {
+  const g = document.createElement('div'); g.className = 'gauge';
+  g.innerHTML = `<div class="bar"><i></i></div><span>${l}</span>`; hud.appendChild(g); gaugeEls[k] = g.querySelector('i');
+}
+
+let rowEls = [];
+function buildRows() {
+  const box = $('#rows'); box.innerHTML = ''; rowEls = [];
+  for (const r of ROWS[S.level]) {
+    const info = INFO[r[0]]; const keys = rowKeys(r);
+    const el = document.createElement('div'); el.className = 'row';
+    el.innerHTML = `<div class="nm"><b>${info.plural || info.name}</b><small>${info.abbr} · ${info.nerve}</small></div>
+      <div class="bars">${keys.map(([, l]) => `<div class="b"><div class="t"><i></i></div>${l ? `<small>${l}</small>` : ''}</div>`).join('')}</div>`;
+    el.addEventListener('mouseenter', () => showInfo(r[0]));
+    el.addEventListener('mouseleave', () => showInfo(null));
+    box.appendChild(el);
+    rowEls.push({ el, keys, fills: [...el.querySelectorAll('.t i')] });
+  }
+}
+function setLevel(v) {
+  S.level = v; setSeg($('#levelSeg'), v); $('#secTitle').textContent = REGIONS[v].title; buildRows(); showInfo(null); M3.focus(v);
+}
+function showInfo(key, extraKey, subText) {
+  const box = $('#info');
+  if (!key) { box.innerHTML = `<h4>${REGIONS[S.level].title}</h4><p>${REGIONS[S.level].blurb}</p><p style="margin-top:6px">Hover any structure in the model for its name and job. Drag to turn it.</p>`; return; }
+  const inf = INFO[key]; if (!inf) return;
+  const sub = subText || (extraKey && extraKey.includes('_') ? ` · ${FNAME[extraKey.split('_')[1]]} finger` : (extraKey && /\d$/.test(extraKey) ? ` ${extraKey.slice(-1)}` : ''));
+  box.innerHTML = `<h4>${inf.name}${sub}</h4><p>${inf.act}</p>${inf.nerve ? `<div class="nerve">Nerve: ${inf.nerve}</div>` : ''}`;
+}
+
+const statusEl = $('#status');
+function setStatus(state, text) { statusEl.dataset.state = state; statusEl.textContent = text; }
+
+// The webcam only works when the page runs on your own computer; anywhere else the demo hand runs.
+if (!['localhost', '127.0.0.1', '[::1]', ''].includes(location.hostname)) {
+  $('#camBtn').hidden = true; $('#camBtn2').hidden = true;
+  $('#notice').querySelector('p').textContent = 'It cycles through finger waves, a fist, a spread and a pinch. Live camera tracking runs when the page is opened on your own computer.';
+}
+
+// ================= camera + tracking =================
+const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const POSE_MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
+let handLM = null, poseLM = null, stream = null, lastVT = -1, frameN = 0;
+const live = { lm: null, wl: null, side: 'Right', sideVote: 0, t: 0, fresh: false, elbow: null, elbowT: 0 };
+
+async function toggleCamera() {
+  if (S.running) { stopCamera(); return; }
+  try {
+    setStatus('loading', 'Asking for camera…');
+    stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
+    video.srcObject = stream; await video.play();
+    S.running = true; $('#notice').hidden = true; setBtns('Turn off camera');
+    if (!handLM) {
+      setStatus('loading', 'Loading hand tracker…');
+      const vision = await import(MP + '/vision_bundle.mjs');
+      const fileset = await vision.FilesetResolver.forVisionTasks(MP + '/wasm');
+      const make = async (Cls, opts) => {
+        try { return await Cls.createFromOptions(fileset, { ...opts, baseOptions: { ...opts.baseOptions, delegate: 'GPU' } }); }
+        catch { return await Cls.createFromOptions(fileset, { ...opts, baseOptions: { ...opts.baseOptions, delegate: 'CPU' } }); }
+      };
+      handLM = await make(vision.HandLandmarker, { baseOptions: { modelAssetPath: HAND_MODEL }, runningMode: 'VIDEO', numHands: 1,
+        minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 });
+      make(vision.PoseLandmarker, { baseOptions: { modelAssetPath: POSE_MODEL }, runningMode: 'VIDEO', numPoses: 1 })
+        .then(p => { poseLM = p; }).catch(() => {});
+    }
+    setStatus('live', 'Tracking');
+  } catch (err) {
+    console.error(err);
+    stopCamera();
+    const denied = err && (err.name === 'NotAllowedError' || err.name === 'SecurityError');
+    setStatus('error', denied ? 'Camera blocked' : 'Could not start');
+    $('#notice').hidden = false;
+    $('#notice').querySelector('p').textContent = denied
+      ? 'The browser blocked the camera. Allow camera access for this page (camera icon in the address bar), then try again.'
+      : 'The camera or the hand tracker failed to load. Check that a camera is connected and that you are online, then try again.';
+  }
+}
+function stopCamera() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; S.running = false; live.lm = null; prevM = null; video.srcObject = null;
+  setBtns('Turn on camera'); setStatus('demo', 'Demo hand'); $('#notice').hidden = false;
+}
+function setBtns(t) { $('#camBtn').textContent = t; }
+$('#camBtn').addEventListener('click', toggleCamera);
+$('#camBtn2').addEventListener('click', toggleCamera);
+
+function detect(now) {
+  if (!S.running || !handLM || video.readyState < 2 || video.currentTime === lastVT) return;
+  lastVT = video.currentTime;
+  const r = handLM.detectForVideo(video, now);
+  if (r.landmarks && r.landmarks.length) {
+    const lm = r.landmarks[0], wl = r.worldLandmarks[0];
+    const fresh = live.lm && now - live.t < 300;
+    const a = 0.55;
+    live.lm = fresh ? live.lm.map((p, i) => ({ x: p.x + (lm[i].x - p.x) * a, y: p.y + (lm[i].y - p.y) * a, z: p.z + (lm[i].z - p.z) * a })) : lm.map(p => ({ ...p }));
+    live.wl = fresh ? live.wl.map((p, i) => ({ x: p.x + (wl[i].x - p.x) * a, y: p.y + (wl[i].y - p.y) * a, z: p.z + (wl[i].z - p.z) * a })) : wl.map(p => ({ ...p }));
+    // MediaPipe labels assume a mirrored image; our frames are not mirrored, so swap.
+    const h = (r.handedness || r.handednesses || [])[0]?.[0]?.categoryName;
+    if (h) { live.sideVote = clamp(live.sideVote + (h === 'Left' ? 1 : -1), -8, 8); live.side = live.sideVote >= 0 ? 'Right' : 'Left'; }
+    live.t = now; live.fresh = true;
+  }
+  if (poseLM && (frameN++ % 2 === 0) && live.lm) {
+    const p = poseLM.detectForVideo(video, now);
+    const L = p.landmarks && p.landmarks[0];
+    if (L) {
+      const w = live.lm[0]; let best = null, bd = 0.14;
+      for (const [ei, wi] of [[13, 15], [14, 16]]) {
+        const d = Math.hypot(L[wi].x - w.x, L[wi].y - w.y);
+        if (d < bd && (L[ei].visibility ?? 1) > 0.5) { bd = d; best = L[ei]; }
+      }
+      if (best) { live.elbow = live.elbow && now - live.elbowT < 600 ? { x: live.elbow.x + (best.x - live.elbow.x) * 0.3, y: live.elbow.y + (best.y - live.elbow.y) * 0.3 } : { x: best.x, y: best.y }; live.elbowT = now; }
+    }
+  }
+}
+
+// ================= demo hand =================
+function demoSource(tms) {
+  const T = (tms / 1000) % 10;
+  const win = (a, b) => smooth(a, a + 0.45, T) * (1 - smooth(b - 0.45, b, T));
+  const w1 = win(0, 3.6), w2 = win(3.4, 5.6), w3 = win(5.4, 7.6), w4 = win(7.4, 10);
+  const cyc = (t0, per) => 0.5 - 0.5 * Math.cos(2 * Math.PI * (T - t0) / per);
+  const fist = cyc(3.4, 2.2), spread = w3 * cyc(5.4, 1.1), opp = w4 * cyc(7.4, 2.6);
+  const fl = [0, 1, 2, 3].map(k => w1 * 0.85 * (0.5 - 0.5 * Math.cos(2 * Math.PI * (1.25 * T - 0.22 * k))) + w2 * 0.95 * fist + opp * [0, 0, 0.25, 0.55][k]);
+  const thumbFlex = w2 * 0.8 * fist + opp * 0.75;
+  const dev = w3 * 0.18 * Math.sin(2 * Math.PI * (T - 5.4) / 2.2);
+  const s = 1.5;
+  const base = { i: [30, 118], m: [8, 124], r: [-15, 116], p: [-35, 102] };
+  const segs = { i: [44, 26, 22], m: [48, 30, 24], r: [45, 28, 22], p: [35, 21, 19] };
+  const spr = { i: 0.13, m: 0.0, r: -0.11, p: -0.25 };
+  const loc = new Array(21); loc[0] = [0, 0, 0];
+  'imrp'.split('').forEach((k, idx) => {
+    const f = fl[idx]; const th = [f * 1.35, f * 1.65, f * 1.05];
+    const a = spr[k] * (1 + 1.8 * spread); const d0 = [Math.sin(a), Math.cos(a)];
+    let p = [base[k][0], base[k][1], 0], beta = 0; const ids = FING[k]; loc[ids[0]] = p;
+    for (let j = 0; j < 3; j++) { beta += th[j]; const d = [d0[0] * Math.cos(beta), d0[1] * Math.cos(beta), Math.sin(beta)];
+      p = [p[0] + d[0] * segs[k][j], p[1] + d[1] * segs[k][j], p[2] + d[2] * segs[k][j]]; loc[ids[j + 1]] = p; }
+  });
+  { const abd = 0.62 + 0.35 * spread - 0.3 * opp; let d0 = [Math.sin(abd), Math.cos(abd), 0.25]; const n = Math.hypot(...d0); d0 = d0.map(v => v / n);
+    const bd = [-0.75, 0.05, 0.65]; const bl = [34, 30, 26]; const bt = [opp * 0.5, thumbFlex * 0.7, thumbFlex * 1.0];
+    let p = [26, 24, 4]; loc[1] = p; let beta = 0;
+    for (let j = 0; j < 3; j++) { beta += bt[j]; const d = d0.map((v, q) => v * Math.cos(beta) + bd[q] * Math.sin(beta)); const dn = Math.hypot(...d);
+      p = p.map((v, q) => v + d[q] / dn * bl[j]); loc[2 + j] = p; } }
+  const W = { x: 500, y: 455 }, E = { x: 775, y: 870 };
+  const e2w = norm2(sub(W, E));
+  const right0 = { x: -e2w.y, y: e2w.x };
+  const up = { x: e2w.x * Math.cos(dev) + right0.x * Math.sin(dev), y: e2w.y * Math.cos(dev) + right0.y * Math.sin(dev) };
+  const right = { x: -up.y, y: up.x };
+  const img = loc.map(([X, Y, Z]) => ({ x: W.x + (X * right.x + Y * up.x) * s, y: W.y + (X * right.y + Y * up.y) * s, z: -Z * s }));
+  return { lm: img.map(p => ({ x: p.x / 1280, y: p.y / 720, z: p.z / 1280 })), wl: img.map(p => ({ x: (p.x - W.x) / 1300, y: (p.y - W.y) / 1300, z: p.z / 1300 })),
+    side: 'Right', elbow: { x: E.x / 1280, y: E.y / 720 }, fw: 1280, fh: 720, fresh: true, t: tms };
+}
+
+// ================= geometry =================
+let cover = { dx: 0, dy: 0, dw: 1, dh: 1 };
+function setCover(fw, fh) { const sc = Math.max(stW / fw, stH / fh); const dw = fw * sc, dh = fh * sc; cover = { dx: (stW - dw) / 2, dy: (stH - dh) / 2, dw, dh }; }
+const toScreen = p => ({ x: stW - (cover.dx + p.x * cover.dw), y: cover.dy + p.y * cover.dh });
+
+function buildGeo(P, Ep) {
+  const W = P[0]; const hv = sub(P[9], W); const hl = Math.max(18, len2(hv)); const hdir = norm2(hv);
+  let E = null, hasElbow = false;
+  if (Ep) { const d = len2(sub(W, Ep)); if (d > hl * 1.4 && d < hl * 4.5) { E = Ep; hasElbow = true; } }
+  if (!E) E = { x: W.x - hdir.x * hl * 2.7, y: W.y - hdir.y * hl * 2.7 };
+  const u = norm2(sub(W, E));
+  let rad = { x: -u.y, y: u.x };
+  const hint = add(sub(P[5], P[17]), mul(sub(P[2], P[17]), 0.5));
+  if (dot2(rad, hint) < 0) rad = mul(rad, -1);
+  const uln = mul(rad, -1);
+  const LEN = sub(E, W);
+  const wS = s => hl * (0.33 + 0.17 * Math.min(1, s / 0.55) - 0.03 * clamp((s - 0.8) / 0.2));
+  const FA = (s, t) => ({ x: W.x + LEN.x * s + uln.x * t * wS(s), y: W.y + LEN.y * s + uln.y * t * wS(s) });
+  const Vlat = mul(sub(P[5], P[17]), 0.5);
+  const H = (x, y) => ({ x: W.x + Vlat.x * x + hv.x * y, y: W.y + Vlat.y * x + hv.y * y });
+  const L = (a, b, t) => lerp2(P[a], P[b], t);
+  let hrad = { x: -hdir.y, y: hdir.x }; if (dot2(hrad, hint) < 0) hrad = mul(hrad, -1);
+  return { P, W, E, hl, hdir, u, rad, uln, FA, H, L, Vn: norm2(Vlat), hrad, wS, hasElbow };
+}
+
+// ================= kinematics → muscle activity =================
+function measure(Wl, isRight, G) {
+  const m = {};
+  for (const k in FING) { const [a, b, c, d] = FING[k];
+    const M = bend3(Wl[0], Wl[a], Wl[b]), Pp = bend3(Wl[a], Wl[b], Wl[c]), D = bend3(Wl[b], Wl[c], Wl[d]);
+    m[k + 'M'] = clamp((M - 0.12) / 1.35); m[k + 'P'] = clamp(Pp / 1.7); m[k + 'D'] = clamp(D / 1.2); m[k + 'F'] = clamp((M + Pp + D - 0.15) / 4.0); }
+  m.tM = clamp(bend3(Wl[1], Wl[2], Wl[3]) / 1.0); m.tIP = clamp(bend3(Wl[2], Wl[3], Wl[4]) / 1.2); m.tF = clamp((m.tM + m.tIP) / 2);
+  m.tAbd = clamp((ang3(sub3(Wl[2], Wl[1]), sub3(Wl[5], Wl[0])) - 0.25) / 0.7);
+  m.g1 = clamp(ang3(sub3(Wl[6], Wl[5]), sub3(Wl[10], Wl[9])) / 0.45);
+  m.g2 = clamp(ang3(sub3(Wl[10], Wl[9]), sub3(Wl[14], Wl[13])) / 0.45);
+  m.g3 = clamp(ang3(sub3(Wl[14], Wl[13]), sub3(Wl[18], Wl[17])) / 0.45);
+  const hlW = len3(sub3(Wl[9], Wl[0])) || 0.09; const dd = (a, b) => len3(sub3(Wl[a], Wl[b]));
+  m.opp = clamp(1 - Math.min(dd(4, 12), dd(4, 16), dd(4, 20)) / (0.7 * hlW));
+  m.pinch = clamp(1 - dd(4, 8) / (0.55 * hlW));
+  const n = norm3(cross3(sub3(Wl[5], Wl[0]), sub3(Wl[17], Wl[0])));
+  const out = isRight ? n : { x: -n.x, y: -n.y, z: -n.z }; // points out of the palm
+  m.palm = -out.z; m.wf = 0; m.wd = 0;
+  if (G && G.hasElbow) {
+    const d = dot2(G.hdir, G.u); const b = { x: G.hdir.x - G.u.x * d, y: G.hdir.y - G.u.y * d };
+    m.wf = clamp(dot2(b, { x: -out.x, y: out.y }) / 0.55, -1, 1);
+    m.wd = clamp(dot2(b, G.rad) * Math.abs(out.z) / 0.35, -1, 1);
+  }
+  return m;
+}
+function updateVel(m, t) {
+  if (prevM && t > prevMT) { const dt = (t - prevMT) / 1000; const k = 1 - Math.exp(-dt / 0.08);
+    for (const key in m) { const raw = (m[key] - prevM[key]) / dt; vel[key] = (vel[key] || 0) + (clamp(raw, -12, 12) - (vel[key] || 0)) * k; } }
+  prevM = m; prevMT = t;
+}
+function targets(m, v) {
+  const T = {}; const dz = x => Math.max(0, x - 0.35); const V = k => v[k] || 0; const pos = x => Math.max(0, x);
+  let meanF = 0;
+  for (const k of 'imrp') {
+    const vp = dz(V(k + 'F')), vn = dz(-V(k + 'F'));
+    T['FDS_' + k] = clamp(1.15 * pos(m[k + 'P'] - 0.2) + 0.5 * vp);
+    T['FDP_' + k] = clamp(1.2 * pos(m[k + 'D'] - 0.18) + 0.35 * pos(m[k + 'P'] - 0.35) + 0.45 * vp);
+    T['ED_' + k] = clamp(0.6 * vn + (m[k + 'F'] < 0.06 ? 0.1 : 0));
+    T['LUM_' + k] = clamp(1.4 * pos(m[k + 'M'] - 0.2) * pos(1 - 1.8 * m[k + 'P']) + 0.3 * dz(V(k + 'M')));
+    meanF += m[k + 'F'] / 4;
+  }
+  const grip = clamp((meanF - 0.3) / 0.5);
+  T.EIP = T.ED_i * 0.85; T.EDM = T.ED_p * 0.9;
+  T.FPL = clamp(1.2 * pos(m.tIP - 0.2) + 0.5 * dz(V('tF')));
+  T.EPL = clamp(0.65 * dz(-V('tF')) + 0.3 * dz(-V('tIP')));
+  T.EPB = clamp(0.45 * dz(-V('tF')) + 0.4 * dz(V('tAbd')));
+  T.APL = clamp(0.9 * pos(m.tAbd - 0.45) + 0.6 * dz(V('tAbd')));
+  T.ADP = clamp(0.9 * pos(m.pinch - 0.3) + 0.5 * dz(-V('tAbd')));
+  T.THEN = clamp(pos(m.opp - 0.25) + 0.35 * T.FPL + 0.35 * T.APL + 0.3 * m.pinch);
+  T.HYPO = clamp(0.8 * pos(m.opp - 0.3) + 0.6 * pos(m.g3 - 0.5) + 0.3 * T.FDP_p);
+  const gs = [m.g1, (m.g1 + m.g2) / 2, (m.g2 + m.g3) / 2, m.g3], gv = [V('g1'), (V('g1') + V('g2')) / 2, (V('g2') + V('g3')) / 2, V('g3')];
+  for (let i = 0; i < 4; i++) T['DI' + (i + 1)] = clamp(1.1 * pos(gs[i] - 0.45) + 0.5 * dz(gv[i]) + (i === 0 ? 0.5 * pos(m.pinch - 0.3) : 0));
+  [['PI1', 'g1'], ['PI2', 'g2'], ['PI3', 'g3']].forEach(([k, g]) => { T[k] = clamp(0.6 * dz(-V(g)) + (m[g] < 0.15 ? 0.12 : 0)); });
+  const wf = m.wf, wd = m.wd, vw = V('wf');
+  T.FCR = clamp(0.9 * pos(wf - 0.1) + 0.6 * pos(wd - 0.1) + 0.3 * dz(vw) + 0.12 * grip);
+  T.FCU = clamp(0.9 * pos(wf - 0.1) + 0.7 * pos(-wd - 0.1) + 0.3 * dz(vw) + 0.15 * grip);
+  T.PL = clamp(0.6 * pos(wf - 0.1) + 0.3 * pos(m.opp - 0.3) + 0.08 * grip);
+  T.ECRL = clamp(0.9 * pos(-wf - 0.1) + 0.7 * pos(wd - 0.1) + 0.3 * dz(-vw) + 0.25 * grip);
+  T.ECRB = clamp(0.9 * pos(-wf - 0.1) + 0.3 * pos(wd - 0.1) + 0.3 * dz(-vw) + 0.45 * grip);
+  T.ECU = clamp(0.9 * pos(-wf - 0.1) + 0.7 * pos(-wd - 0.1) + 0.3 * dz(-vw) + 0.25 * grip);
+  T.BR = clamp(0.15 * grip);
+  return T;
+}
+
+// ================= overlay anatomy (fitted to the tracked hand) =================
+function anatomy(G) {
+  const { FA, H, L, P, hl, Vn } = G; const palm = [], back = [];
+  const sT = { i: -0.33, m: -0.11, r: 0.11, p: 0.33 };
+  for (const k of 'imrp') { const [a, b, c, d] = FING[k]; const t0 = 0.12 + sT[k] * 0.55;
+    palm.push({ key: 'FDP_' + k, s: [0.24, 0.86], t: [t0, 0.48 + sT[k] * 0.25], hw: 0.12, tw: 0.030,
+      tendon: [FA(0.24, t0), FA(0.0, sT[k] * 0.55), L(0, a, 0.5), P[a], P[b], P[c], L(c, d, 0.35)] }); }
+  palm.push({ key: 'FPL', s: [0.2, 0.62], t: [-0.52, -0.42], hw: 0.16, tw: 0.03, tendon: [FA(0.2, -0.52), FA(0, -0.42), H(0.32, 0.22), P[2], P[3], L(3, 4, 0.45)] });
+  for (const k of 'imrp') { const [a, b, c] = FING[k]; const t0 = -0.08 + sT[k] * 0.7;
+    palm.push({ key: 'FDS_' + k, s: [0.32, 0.9], t: [t0, 0.3 + sT[k] * 0.3], hw: 0.12, tw: 0.034,
+      tendon: [FA(0.32, t0), FA(0.0, sT[k] * 0.6 - 0.04), L(0, a, 0.55), P[a], P[b], L(b, c, 0.3)] }); }
+  palm.push({ key: 'FCR', s: [0.5, 0.95], t: [-0.42, 0.45], hw: 0.17, tw: 0.032, tendon: [FA(0.5, -0.42), FA(0, -0.62), H(0.6, 0.18), L(0, 5, 0.27)] });
+  palm.push({ key: 'PL', s: [0.6, 0.95], t: [0.0, 0.5], hw: 0.09, tw: 0.022, tendon: [FA(0.6, 0.0), FA(0, 0.0), L(0, 9, 0.25), L(0, 9, 0.5)],
+    fan: [L(0, 5, 0.85), L(0, 9, 0.88), L(0, 13, 0.86), L(0, 17, 0.82)] });
+  palm.push({ key: 'FCU', s: [0.14, 0.96], t: [0.82, 0.7], hw: 0.2, tw: 0.034, tendon: [FA(0.14, 0.82), FA(0, 0.8), H(-0.52, 0.07)] });
+  const br = { key: 'BR', s: [0.45, 1.02], t: [-0.86, -0.72], hw: 0.22, tw: 0.03, tendon: [FA(0.45, -0.86), FA(0.02, -0.96)] };
+  palm.push(br);
+  palm.push({ key: 'ADP', sp: [L(0, 9, 0.62), L(2, 3, 0.05)], w: 0.13 });
+  for (const k of 'imrp') { const a = FING[k][0]; palm.push({ key: 'LUM_' + k, sp: [L(0, a, 0.5), add(P[a], mul(Vn, 0.07 * hl))], w: 0.055 }); }
+  palm.push({ key: 'THEN', sp: [H(0.55, 0.2), L(2, 3, 0.25)], w: 0.26 });
+  palm.push({ key: 'HYPO', sp: [add(H(-0.55, 0.12), mul(Vn, -0.1 * hl)), add(L(17, 18, 0.15), mul(Vn, -0.06 * hl))], w: 0.2 });
+
+  back.push({ key: 'APL', s: [0.26, 0.62], t: [-0.55, 0.05], hw: 0.14, tw: 0.03, tendon: [FA(0.26, -0.55), FA(0.08, -0.92), FA(0, -0.98), P[1]] });
+  back.push({ key: 'EPB', s: [0.18, 0.46], t: [-0.42, -0.08], hw: 0.1, tw: 0.026, tendon: [FA(0.18, -0.42), FA(0.06, -0.86), FA(0, -0.92), P[1], P[2], L(2, 3, 0.18)] });
+  back.push({ key: 'EPL', s: [0.2, 0.56], t: [-0.12, 0.3], hw: 0.1, tw: 0.026, tendon: [FA(0.2, -0.12), FA(0, -0.3), H(0.45, 0.15), P[2], P[3], L(3, 4, 0.5)] });
+  back.push({ key: 'EIP', s: [0.12, 0.42], t: [0.15, 0.42], hw: 0.08, tw: 0.024, tendon: [FA(0.12, 0.15), FA(0, -0.08), L(0, 5, 0.35), P[5], P[6], P[7], L(7, 8, 0.4)] });
+  back.push({ key: 'ECRL', s: [0.45, 1.02], t: [-0.7, -0.82], hw: 0.18, tw: 0.032, tendon: [FA(0.45, -0.7), FA(0, -0.72), L(0, 5, 0.22)] });
+  back.push({ key: 'ECRB', s: [0.36, 0.96], t: [-0.46, -0.62], hw: 0.16, tw: 0.032, tendon: [FA(0.36, -0.46), FA(0, -0.5), L(0, 9, 0.2)] });
+  const eT = { i: -0.24, m: -0.07, r: 0.1, p: 0.27 };
+  for (const k of 'imrp') { const [a, b, c, d] = FING[k];
+    back.push({ key: 'ED_' + k, s: [0.3, 0.95], t: [eT[k], -0.42 + eT[k] * 0.3], hw: 0.1, tw: 0.028,
+      tendon: [FA(0.3, eT[k]), FA(0, eT[k] * 0.6 - 0.05), L(0, a, 0.35), P[a], P[b], P[c], L(c, d, 0.4)] }); }
+  back.push({ key: 'EDM', s: [0.35, 0.9], t: [0.46, -0.05], hw: 0.07, tw: 0.024, tendon: [FA(0.35, 0.46), FA(0, 0.45), L(0, 17, 0.35), P[17], P[18], P[19], L(19, 20, 0.4)] });
+  back.push({ key: 'ECU', s: [0.2, 0.96], t: [0.78, 0.5], hw: 0.17, tw: 0.032, tendon: [FA(0.2, 0.78), FA(0, 0.8), L(0, 17, 0.22)] });
+  back.push(br);
+  const mb = k => L(0, FING[k][0], 0.32);
+  back.push({ key: 'DI1', sp: [lerp2(P[1], mb('i'), 0.5), add(P[5], mul(Vn, 0.02 * hl))], w: 0.14 });
+  back.push({ key: 'DI2', sp: [lerp2(mb('i'), mb('m'), 0.5), lerp2(P[5], P[9], 0.5)], w: 0.07 });
+  back.push({ key: 'DI3', sp: [lerp2(mb('m'), mb('r'), 0.5), lerp2(P[9], P[13], 0.5)], w: 0.07 });
+  back.push({ key: 'DI4', sp: [lerp2(mb('r'), mb('p'), 0.5), lerp2(P[13], P[17], 0.5)], w: 0.07 });
+  return { palm, back };
+}
+function nervePaths(G) {
+  const { FA, H, L, P } = G;
+  const md = L(0, 9, 0.5);
+  return {
+    palm: [
+      { c: 'n', pts: [FA(1.0, -0.1), FA(0.5, 0.0), FA(0, -0.15), H(0.15, 0.3), md] },
+      { c: 'n', pts: [md, P[2], P[3]] }, { c: 'n', pts: [md, P[5], P[6]] }, { c: 'n', pts: [md, P[9], P[10]] },
+      { c: 'n', pts: [FA(1.0, 0.55), FA(0.3, 0.68), FA(0, 0.62), H(-0.38, 0.2), L(0, 17, 0.6), P[17], P[18]] },
+      { c: 'n', pts: [L(0, 17, 0.6), P[13], P[14]] },
+      { c: 'a', pts: [FA(1, -0.2), FA(0.5, -0.7), FA(0, -0.75)] },
+      { c: 'a', pts: [FA(1, 0.1), FA(0.5, 0.6), FA(0, 0.62), H(-0.35, 0.25), L(0, 9, 0.62), L(0, 5, 0.6)] },
+    ],
+    back: [
+      { c: 'n', pts: [FA(0.6, -0.8), FA(0.05, -0.9), L(1, 2, 0.5), P[2]] },
+      { c: 'n', pts: [FA(0.05, -0.9), L(0, 5, 0.6), P[5]] },
+      { c: 'v', pts: [FA(1, -0.5), FA(0.4, -0.75), FA(0, -0.8), L(1, 5, 0.5)] },
+      { c: 'v', pts: [FA(1, 0.6), FA(0.4, 0.7), FA(0, 0.75), L(0, 17, 0.5), L(0, 9, 0.6), L(1, 5, 0.5)] },
+    ],
+  };
+}
+
+// ================= drawing helpers =================
+function smoothPath(ctx, pts) {
+  ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length - 1; i++) { const m = lerp2(pts[i], pts[i + 1], 0.5); ctx.quadraticCurveTo(pts[i].x, pts[i].y, m.x, m.y); }
+  const l = pts[pts.length - 1]; ctx.lineTo(l.x, l.y);
+}
+const REST = [126, 44, 46], HOT = [255, 104, 66];
+const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const MODE = { skin: { m: 0.5, t: 0.75, b: 0.45, n: 0.7 }, atlas: { m: 0.88, t: 0.95, b: 0.85, n: 0.9 }, xray: { m: 0.28, t: 0.45, b: 1, n: 0.5 } };
+
+function musclePoly(G, it, a) {
+  const N = 14, Ls = [], Rs = [];
+  for (let i = 0; i <= N; i++) { const u = i / N; const s = it.s[0] + (it.s[1] - it.s[0]) * u; const t = it.t[0] + (it.t[1] - it.t[0]) * u;
+    const off = G.wS(s) * it.hw * Math.pow(Math.sin(Math.PI * u), 0.65) * (1 + 0.14 * a); const c = G.FA(s, t);
+    Ls.push(add(c, mul(G.uln, off))); Rs.push(sub(c, mul(G.uln, off))); }
+  return { Ls, Rs, mid: G.FA((it.s[0] + it.s[1]) / 2, (it.t[0] + it.t[1]) / 2) };
+}
+function spindle(G, it, a) {
+  const [p, q] = it.sp; const d = norm2(sub(q, p)); const n = { x: -d.y, y: d.x }; const N = 12, Ls = [], Rs = [];
+  for (let i = 0; i <= N; i++) { const u = i / N; const c = lerp2(p, q, u); const off = G.hl * it.w * 0.5 * Math.pow(Math.sin(Math.PI * u), 0.7) * (1 + 0.14 * a);
+    Ls.push(add(c, mul(n, off))); Rs.push(sub(c, mul(n, off))); }
+  return { Ls, Rs, mid: lerp2(p, q, 0.5) };
+}
+function fillMuscle(ctx, shp, a, alpha, mode) {
+  const { Ls, Rs } = shp; ctx.beginPath(); ctx.moveTo(Ls[0].x, Ls[0].y);
+  for (const p of Ls) ctx.lineTo(p.x, p.y); for (let i = Rs.length - 1; i >= 0; i--) ctx.lineTo(Rs[i].x, Rs[i].y); ctx.closePath();
+  const col = mode === 'xray' ? mix([90, 130, 160], [255, 140, 90], a) : mix(REST, HOT, a);
+  ctx.fillStyle = rgba(col, alpha * (0.5 + 0.5 * a));
+  if (a > 0.05) { ctx.shadowColor = `rgba(255,110,60,${(0.85 * a * alpha).toFixed(3)})`; ctx.shadowBlur = 26 * a; }
+  ctx.fill(); ctx.shadowBlur = 0;
+  ctx.strokeStyle = `rgba(255,205,190,${0.3 * alpha})`; ctx.lineWidth = 1; ctx.stroke();
+  ctx.strokeStyle = `rgba(255,200,180,${(0.14 + 0.3 * a) * alpha})`; ctx.lineWidth = 0.8;
+  for (const f of [0.3, 0.5, 0.7]) { ctx.beginPath(); for (let i = 0; i < Ls.length; i++) { const p = lerp2(Ls[i], Rs[i], f); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } ctx.stroke(); }
+}
+function drawTendon(ctx, it, a, alpha, hl, dt) {
+  const w = Math.max(1.5, it.tw * hl);
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  smoothPath(ctx, it.tendon); ctx.strokeStyle = `rgba(228,234,236,${0.75 * alpha})`; ctx.lineWidth = w; ctx.stroke();
+  if (it.fan) for (const f of it.fan) { ctx.beginPath(); const s = it.tendon[it.tendon.length - 1]; ctx.moveTo(s.x, s.y); ctx.lineTo(f.x, f.y); ctx.lineWidth = w * 0.5; ctx.stroke(); }
+  if (a > 0.04) {
+    phase[it.key] = (phase[it.key] || 0) + (reduceMotion ? 0 : dt * (20 + 60 * a));
+    smoothPath(ctx, it.tendon); ctx.setLineDash([w * 1.5, w * 1.5]); ctx.lineDashOffset = phase[it.key];
+    ctx.strokeStyle = `rgba(165,236,250,${(a * alpha).toFixed(3)})`; ctx.lineWidth = w * 0.85;
+    ctx.shadowColor = `rgba(140,225,245,${(a * alpha).toFixed(3)})`; ctx.shadowBlur = 12 * a; ctx.stroke();
+    ctx.setLineDash([]); ctx.shadowBlur = 0;
+  }
+}
+function capsule(ctx, a, b, r) {
+  const d = norm2(sub(b, a)); const n = { x: -d.y * r * 0.7, y: d.x * r * 0.7 };
+  ctx.moveTo(a.x + n.x, a.y + n.y); ctx.lineTo(b.x + n.x, b.y + n.y); ctx.lineTo(b.x - n.x, b.y - n.y); ctx.lineTo(a.x - n.x, a.y - n.y); ctx.closePath();
+  ctx.moveTo(a.x + r, a.y); ctx.arc(a.x, a.y, r, 0, Math.PI * 2);
+  ctx.moveTo(b.x + r * 0.9, b.y); ctx.arc(b.x, b.y, r * 0.9, 0, Math.PI * 2);
+}
+function longBone(ctx, G, tc, hw, s0, s1) {
+  const N = 18, A = [], B = [];
+  for (let i = 0; i <= N; i++) { const s = s0 + (s1 - s0) * i / N; A.push(G.FA(s, tc(s) - hw(s))); B.push(G.FA(s, tc(s) + hw(s))); }
+  ctx.moveTo(A[0].x, A[0].y); for (const p of A) ctx.lineTo(p.x, p.y); for (let i = B.length - 1; i >= 0; i--) ctx.lineTo(B[i].x, B[i].y); ctx.closePath();
+}
+function drawBones(ctx, G, mode) {
+  const { P, L, H, hl } = G; const al = MODE[mode].b;
+  ctx.save();
+  if (mode === 'xray') { ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(185,215,240,0.40)'; ctx.strokeStyle = 'rgba(225,240,255,0.55)'; ctx.shadowColor = 'rgba(150,205,255,0.7)'; ctx.shadowBlur = 14; }
+  else { ctx.fillStyle = `rgba(236,223,196,${0.9 * al})`; ctx.strokeStyle = `rgba(255,248,232,${al})`; ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 6; }
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  longBone(ctx, G, s => -0.46 + 0.04 * s, s => 0.28 - 0.17 * s + (s > 0.9 ? 0.05 : 0), 0.03, 0.97);
+  longBone(ctx, G, s => 0.5 - 0.04 * s, s => 0.08 + 0.18 * Math.pow(s, 1.5), 0.0, 1.03);
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath();
+  for (const [x, y, r] of [[0.55, 0.08, 1], [0.12, 0.06, 1], [-0.3, 0.08, 0.9], [-0.5, 0.03, 0.65], [0.78, 0.2, 0.95], [0.42, 0.23, 0.85], [0.06, 0.24, 1.05], [-0.32, 0.22, 1]]) {
+    const c = H(x, y); const rr = hl * 0.07 * r; ctx.moveTo(c.x + rr, c.y); ctx.arc(c.x, c.y, rr, 0, Math.PI * 2); }
+  ctx.fill(); ctx.stroke();
+  const seg = (a, b, r) => { const s = lerp2(a, b, 0.07), e = lerp2(a, b, 0.93); ctx.beginPath(); capsule(ctx, s, e, r); ctx.fill(); };
+  seg(P[1], P[2], hl * 0.07); seg(P[2], P[3], hl * 0.06); seg(P[3], L(3, 4, 0.85), hl * 0.05);
+  for (const k of 'imrp') { const [a, b, c, d] = FING[k];
+    seg(L(0, a, 0.3), P[a], hl * 0.062); seg(P[a], P[b], hl * 0.055); seg(P[b], P[c], hl * 0.047); seg(P[c], L(c, d, 0.85), hl * 0.04); }
+  ctx.restore();
+}
+function drawFlesh(G, mode) {
+  const { P, FA, hl } = G; const c = fctx;
+  c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, stW, stH);
+  c.fillStyle = c.strokeStyle = '#fff'; c.lineCap = 'round'; c.lineJoin = 'round';
+  c.beginPath(); const N = 16;
+  for (let i = 0; i <= N; i++) { const p = FA(1.05 * i / N, -1.08); i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y); }
+  for (let i = N; i >= 0; i--) { const p = FA(1.05 * i / N, 1.08); c.lineTo(p.x, p.y); }
+  c.closePath(); c.fill();
+  c.beginPath(); for (const i of [0, 1, 2, 5, 9, 13, 17]) i ? c.lineTo(P[i].x, P[i].y) : c.moveTo(P[i].x, P[i].y); c.closePath(); c.fill();
+  c.lineWidth = hl * 0.2; c.stroke();
+  for (const ids of [[1, 2, 3, 4], ...Object.values(FING)]) { c.beginPath(); ids.forEach((i, j) => j ? c.lineTo(P[i].x, P[i].y) : c.moveTo(P[i].x, P[i].y)); c.lineWidth = hl * (ids[0] === 1 ? 0.23 : 0.19); c.stroke(); }
+  c.globalCompositeOperation = 'source-in';
+  c.fillStyle = mode === 'xray' ? 'rgba(130,185,215,1)' : 'rgba(64,24,28,1)'; c.fillRect(0, 0, stW, stH);
+  c.globalCompositeOperation = 'source-over';
+  const ctx = vctx; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = mode === 'xray' ? 0.13 : mode === 'atlas' ? 0.5 : 0; if (ctx.globalAlpha > 0 && flesh.width && flesh.height) ctx.drawImage(flesh, 0, 0); ctx.restore();
+}
+function drawSide(ctx, G, list, alpha, mode, dt, collect) {
+  if (alpha < 0.02) return;
+  const M = MODE[mode];
+  if (S.layers.muscles) for (const it of list) { const a = act[it.key] || 0; const shp = it.sp ? spindle(G, it, a) : musclePoly(G, it, a);
+    fillMuscle(ctx, shp, a, alpha * M.m, mode); if (collect) collect.push({ key: it.key, pt: shp.mid, a }); }
+  if (S.layers.tendons) for (const it of list) if (it.tendon) drawTendon(ctx, it, act[it.key] || 0, alpha * M.t, G.hl, dt);
+}
+function drawNerves(ctx, G, side, alpha, mode) {
+  if (!S.layers.nerves || alpha < 0.02) return;
+  const col = { n: '226,179,60', a: '208,57,60', v: '77,116,189' };
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  for (const p of nervePaths(G)[side]) { smoothPath(ctx, p.pts); ctx.strokeStyle = `rgba(${col[p.c]},${alpha * MODE[mode].n})`; ctx.lineWidth = Math.max(1.2, G.hl * (p.c === 'n' ? 0.02 : 0.024)); ctx.stroke(); }
+}
+function drawTags(ctx, list) {
+  const top = list.filter(e => e.a > 0.3).sort((x, y) => y.a - x.a).slice(0, 3);
+  ctx.save(); ctx.font = '500 12px "IBM Plex Mono", monospace'; ctx.textBaseline = 'middle';
+  for (const e of top) {
+    const txt = labelFor(e.key); const tw = ctx.measureText(txt).width; const right = e.pt.x < stW * 0.7;
+    const lx = clamp(e.pt.x + (right ? 34 : -34 - tw - 12), 6, stW - tw - 18), ly = clamp(e.pt.y - 24, 14, stH - 14);
+    ctx.strokeStyle = `rgba(255,170,140,${e.a})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(e.pt.x, e.pt.y); ctx.lineTo(right ? lx : lx + tw + 12, ly); ctx.stroke();
+    ctx.fillStyle = 'rgba(12,19,23,0.82)'; ctx.beginPath(); ctx.roundRect(lx, ly - 10, tw + 12, 20, 4); ctx.fill();
+    ctx.fillStyle = `rgba(255,220,208,${0.5 + 0.5 * e.a})`; ctx.fillText(txt, lx + 6, ly + 0.5);
+  }
+  ctx.restore();
+}
+function drawBackdrop(ctx) {
+  const g = ctx.createRadialGradient(stW * 0.5, stH * 0.45, 10, stW * 0.5, stH * 0.5, Math.max(stW, stH) * 0.7);
+  g.addColorStop(0, '#16222a'); g.addColorStop(1, '#0a1013'); ctx.fillStyle = g; ctx.fillRect(0, 0, stW, stH);
+  ctx.strokeStyle = 'rgba(143,211,223,0.05)'; ctx.lineWidth = 1;
+  for (let x = 0; x < stW; x += 32) { ctx.beginPath(); ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, stH); ctx.stroke(); }
+  for (let y = 0; y < stH; y += 32) { ctx.beginPath(); ctx.moveTo(0, y + 0.5); ctx.lineTo(stW, y + 0.5); ctx.stroke(); }
+}
+function renderStage(G, m, dt) {
+  const ctx = vctx; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#0a1013'; ctx.fillRect(0, 0, stW, stH);
+  if (S.running && video.readyState >= 2) {
+    ctx.save(); ctx.filter = S.mode === 'skin' ? 'none' : S.mode === 'atlas' ? 'brightness(0.42) saturate(0.55)' : 'grayscale(1) invert(1) brightness(0.45) contrast(1.6)';
+    ctx.translate(stW, 0); ctx.scale(-1, 1); ctx.drawImage(video, cover.dx, cover.dy, cover.dw, cover.dh); ctx.restore();
+    if (S.mode === 'xray') { ctx.fillStyle = 'rgba(10,45,70,0.35)'; ctx.fillRect(0, 0, stW, stH); }
+  } else drawBackdrop(ctx);
+  if (!G) {
+    if (S.running) { ctx.fillStyle = 'rgba(227,233,234,0.85)'; ctx.font = 'italic 500 22px Newsreader, Georgia, serif'; ctx.textAlign = 'center';
+      ctx.fillText('Show your hand and forearm to the camera', stW / 2, stH / 2); ctx.font = '13px "IBM Plex Sans", sans-serif'; ctx.fillStyle = 'rgba(143,161,168,0.9)';
+      ctx.fillText('Palm or back of the hand toward the lens works best. Keep the wrist in frame.', stW / 2, stH / 2 + 26); }
+    return;
+  }
+  if (M3.stage) return;  // the 3D anatomy is drawn over the camera on its own canvas; the flat drawing below is the fallback
+  const pa = smooth(-0.35, 0.35, m.palm), ba = 1 - pa;
+  drawFlesh(G, S.mode);
+  const A = anatomy(G); const near = pa >= 0.5 ? 'palm' : 'back', far = near === 'palm' ? 'back' : 'palm';
+  const na = near === 'palm' ? pa : ba, fa = far === 'palm' ? pa : ba;
+  drawSide(ctx, G, A[far], fa * 0.6, S.mode, dt, null);
+  drawNerves(ctx, G, far, fa * 0.6, S.mode);
+  if (S.layers.bones && S.mode !== 'xray') drawBones(ctx, G, S.mode);
+  const tags = []; drawSide(ctx, G, A[near], na, S.mode, dt, tags);
+  drawNerves(ctx, G, near, na, S.mode);
+  if (S.layers.bones && S.mode === 'xray') drawBones(ctx, G, S.mode);
+  drawTags(ctx, tags);
+}
+
+// ================= 3D model plate =================
+// models/forearm.glb is built by blender/build_forearm.py. Object names carry the anatomy:
+// Skin, B_ bone, M_ muscle, T_ tendon, N_ nerve, A_ artery, V_ vein, X_ other tissue, Z_ nail.
+// Muscle and tendon keys match ACT_KEYS; a "__n" suffix only keeps names unique (M_ADP__2).
+const VIEWS = { palm: [-0.3, 0.06, 1], back: [0.3, 0.06, -1], thumb: [-1, 0.05, 0.3] };
+const FINGER_BONE = { i: 'index', m: 'middle', r: 'ring', p: 'little' };
+const M3 = { ready: false, stage: false, view: 'palm', frame() {}, focus() {} };
+
+// Joint angles for the model's rig, read straight off the tracked (or demo) hand.
+function poseTargets(wl, m, hasElbow) {
+  const T = {};
+  for (const k in FING) {
+    const [a, b, c, d] = FING[k], n = FINGER_BONE[k];
+    T[n + '_1'] = clamp(bend3(wl[0], wl[a], wl[b]) - 0.18, 0, 1.6);
+    T[n + '_2'] = clamp(bend3(wl[a], wl[b], wl[c]), 0, 1.9);
+    T[n + '_3'] = clamp(bend3(wl[b], wl[c], wl[d]), 0, 1.4);
+  }
+  T.thumb_1 = 0.6 * m.opp;
+  T.thumb_2 = clamp(bend3(wl[1], wl[2], wl[3]) - 0.1, 0, 1.1);
+  T.thumb_3 = clamp(bend3(wl[2], wl[3], wl[4]), 0, 1.4);
+  T.hand = hasElbow ? 0.7 * m.wf : 0;
+  return T;
+}
+
+async function initModel() {
+  const wrap = $('#modelWrap'), cvs = $('#model'), state = $('#mstate'), tagBox = $('#mtags');
+  const fail = msg => { state.textContent = msg; state.style.display = ''; };
+  let THREE, GLTFLoader, OrbitControls, cloneSkinned;
+  try {
+    THREE = await import('three');
+    ({ GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js'));
+    ({ OrbitControls } = await import('three/addons/controls/OrbitControls.js'));
+    ({ clone: cloneSkinned } = await import('three/addons/utils/SkeletonUtils.js'));
+  } catch (err) { console.error(err); return fail('The 3D viewer could not load. Check that you are online, then reload the page.'); }
+
+  let renderer;
+  try { renderer = new THREE.WebGLRenderer({ canvas: cvs, antialias: true }); }
+  catch (err) { console.error(err); return fail('This browser cannot draw 3D graphics (WebGL is off or not supported).'); }
+  renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
+  renderer.setClearColor(0x10181c, 1);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(32, 1, 0.005, 5);
+  const controls = new OrbitControls(camera, cvs);
+  Object.assign(controls, { enableDamping: true, dampingFactor: 0.09, minDistance: 0.08, maxDistance: 1.4, screenSpacePanning: true, rotateSpeed: 0.8 });
+  scene.add(new THREE.HemisphereLight(0xe6f2f4, 0x2b1d1b, 1.1));
+  const key = new THREE.DirectionalLight(0xfff4ea, 2.2); key.position.set(-0.5, 0.8, 1); scene.add(key);
+  const fill = new THREE.DirectionalLight(0x8fd3df, 1.1); fill.position.set(0.7, -0.2, -0.9); scene.add(fill);
+  camera.add(new THREE.DirectionalLight(0xffffff, 0.6)); scene.add(camera);
+
+  const size = () => { const r = wrap.getBoundingClientRect(); if (!r.width) return; renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix(); };
+  new ResizeObserver(size).observe(wrap); size();
+
+  let gltf;
+  try {
+    gltf = await new GLTFLoader().loadAsync('models/forearm.glb', ev => { if (ev.total) state.textContent = `Loading model… ${Math.round(100 * ev.loaded / ev.total)}%`; });
+  } catch (err) {
+    console.error(err);
+    return fail(location.protocol === 'file:' ? 'The 3D model only loads when the page is served, not opened as a file. Start the forearm-atlas server and open the page from there.' : 'The 3D model (models/forearm.glb) could not load.');
+  }
+  // glTF is y-up with the arm along -z. Turning it a quarter turn makes the scene frame match the model's own
+  // (x ulnar, y toward the fingertips, z out of the palm): fingers point up and the palm faces the camera.
+  const model = gltf.scene; model.rotation.x = Math.PI / 2;
+  const root = new THREE.Group(); root.add(model); scene.add(root); root.updateMatrixWorld(true);
+  const sModel = cloneSkinned(model);  // second copy, fitted to the tracked hand on the camera stage (clone before userData gets object links)
+
+  const stripes = (lo, hi, seed) => {  // stripes along each muscle: its fascicles
+    const c = document.createElement('canvas'); c.width = 8; c.height = 256; const g = c.getContext('2d'); const r = rng(seed);
+    for (let y = 0; y < 256; y++) { const v = lo + Math.round(r() * (hi - lo)); g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(0, y, 8, 1); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1, 3); return t;
+  };
+  const fibers = stripes(120, 255, 11), fiberTint = stripes(205, 255, 12);
+  fiberTint.colorSpace = THREE.SRGBColorSpace;
+  const LOOK = { muscle: [0x7e2c2e, 0.55], tendon: [0xe4eaec, 0.3], bone: [0xecdfc4, 0.62], nerve: [0xe2b33c, 0.45], artery: [0xd0393c, 0.4],
+    vein: [0x4d74bd, 0.42], fascia: [0xd5dde0, 0.5], nail: [0xd9a99b, 0.35] };
+  const rimU = { value: 1 };
+  function material(cat) {
+    if (cat === 'skin') {  // glass skin: faint face-on, denser at the silhouette
+      // The skin is cut off just below the elbow; vElbow fades that end out so it reads as a cut, not a cap.
+      const m = new THREE.MeshStandardMaterial({ color: 0xd9a58e, roughness: 0.45, transparent: true, opacity: 0.22, depthWrite: false });
+      m.onBeforeCompile = sh => {
+        sh.uniforms.rimK = rimU;
+        sh.vertexShader = 'varying float vElbow;\n' + sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n  vElbow = smoothstep(-0.066, -0.035, position.z * -1.0);');
+        sh.fragmentShader = 'uniform float rimK;\nvarying float vElbow;\n' + sh.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>
+          float rimF = pow(1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition))), 1.6);
+          gl_FragColor.a = clamp(mix(gl_FragColor.a, gl_FragColor.a * mix(0.35, 3.6, rimF), rimK), 0.0, 1.0) * mix(1.0, vElbow, rimK);
+          gl_FragColor.rgb += rimK * rimF * vec3(0.10, 0.07, 0.06);`);
+      };
+      return m;
+    }
+    const [col, rough] = LOOK[cat];
+    // Physical materials with a thin clear coat: living tissue is wet, and the highlight is what makes it read as real.
+    const coat = { muscle: 0.45, tendon: 0.7, nerve: 0.35, artery: 0.6, vein: 0.6, bone: 0.12, fascia: 0.5, nail: 0.8 }[cat];
+    const m = new THREE.MeshPhysicalMaterial({ color: col, roughness: rough, metalness: 0, clearcoat: coat, clearcoatRoughness: 0.35,
+      transparent: cat !== 'bone', side: cat === 'fascia' ? THREE.DoubleSide : THREE.FrontSide });
+    if (cat === 'muscle') { m.bumpMap = fibers; m.bumpScale = 2.2; m.map = fiberTint; m.sheen = 0.35; m.sheenColor = new THREE.Color(0xff9a8a); m.sheenRoughness = 0.6; }
+    if (cat === 'tendon') { m.sheen = 0.5; m.sheenColor = new THREE.Color(0xdff6ff); }
+    if (cat === 'fascia') { m.opacity = 0.6; m.depthWrite = false; }
+    return m;
+  }
+
+  const PREFIX = { B: 'bone', M: 'muscle', T: 'tendon', N: 'nerve', A: 'artery', V: 'vein', X: 'fascia', Z: 'nail' };
+  const parts = [], pickable = [];
+  model.traverse(o => {
+    if (!o.isMesh) return;
+    const cat = o.name === 'Skin' ? 'skin' : PREFIX[o.name[0]]; if (!cat) return;
+    const [key, suffix = ''] = cat === 'skin' ? [''] : o.name.slice(2).split('__');
+    o.material = material(cat); o.frustumCulled = false;
+    if (cat === 'skin') o.renderOrder = 2;
+    const p = { o, cat, key, suffix, actKey: (cat === 'muscle' || cat === 'tendon') && key in act ? key : null,
+      info: cat === 'muscle' || cat === 'tendon' ? baseOf(key) : cat === 'skin' || cat === 'nail' ? null : key,
+      baseE: new THREE.Color(0), baseEI: 0 };
+    if (cat === 'muscle') { o.geometry.computeBoundingBox(); p.anchor = o.geometry.boundingBox.getCenter(new THREE.Vector3()); }
+    o.userData.part = p; parts.push(p); if (p.info && INFO[p.info]) pickable.push(o);
+  });
+
+  // Rig: each joint bends about an axis stored with the model (in the model frame, which is this scene's world frame).
+  const rig = {}, tmpQ = new THREE.Quaternion();
+  let rigInfo = null; model.traverse(o => { if (o.userData && o.userData.atlas_rig) rigInfo = JSON.parse(o.userData.atlas_rig); });
+  if (rigInfo) for (const [nm, ax] of Object.entries(rigInfo.bones)) {
+    const b = model.getObjectByName(nm); if (!b || !b.isBone) continue;
+    const restW = b.getWorldQuaternion(new THREE.Quaternion()), inv = restW.clone().invert();
+    rig[nm] = { b, rest: b.quaternion.clone(), restW, flex: new THREE.Vector3(...ax.flex).applyQuaternion(inv).normalize(), cur: 0,
+      sb: sModel.getObjectByName(nm) };
+  }
+
+  // ---- Stage overlay: the same anatomy, fitted every frame to the tracked hand on top of the camera picture.
+  // Placed at the wrist, scaled to the hand, turned to match the palm, and laid along the forearm toward the elbow.
+  const sCvs = $('#view3d'), sTagBox = $('#stags');
+  let sRen = null;
+  try { sRen = new THREE.WebGLRenderer({ canvas: sCvs, antialias: true, alpha: true }); } catch (err) { console.error(err); }
+  const sScene = new THREE.Scene(), sCam = new THREE.OrthographicCamera(0, 1, 0, -1, 1, 40000);
+  sCam.position.z = 20000;
+  sScene.add(new THREE.HemisphereLight(0xeaf4f6, 0x302020, 1.2));
+  const sKey = new THREE.DirectionalLight(0xfff2e6, 2.4); sKey.position.set(-0.4, 0.7, 1); sScene.add(sKey);
+  const sRim = new THREE.DirectionalLight(0x8fd3df, 1.0); sRim.position.set(0.8, -0.3, 0.4); sScene.add(sRim);
+  const sMir = new THREE.Group(), sRoot = new THREE.Group(); sMir.add(sModel); sRoot.add(sMir); sScene.add(sRoot);
+  if (sRen) {
+    sRen.outputColorSpace = THREE.SRGBColorSpace; sRen.toneMapping = THREE.ACESFilmicToneMapping; sRen.toneMappingExposure = 1.15;
+    sRen.setClearColor(0x000000, 0);
+  }
+  const sParts = [], matByName = {};
+  for (const p of parts) matByName[p.o.name] = p.o.material;
+  // Same material objects as the panel, so activity glow, hover and view mode show on both.
+  sModel.traverse(o => { if (o.isMesh) { o.frustumCulled = false; if (matByName[o.name]) o.material = matByName[o.name]; sParts.push(o); } });
+  // Landmarks on the model (model frame, metres) that match tracker points 0, 9, 5 and 17.
+  const MW = { W: [0, 0.255, -0.002], M: [-0.008, 0.36, -0.006], I: [-0.027, 0.355, -0.004], P: [0.026, 0.343, -0.003] };
+  const fitS = { q: new THREE.Quaternion(), p: new THREE.Vector3(), s: 0, hand: new THREE.Quaternion(), on: false };
+  let sW = 0, sH = 0;
+  function stageSize() {
+    if (!sRen || (sW === stW && sH === stH)) return; sW = stW; sH = stH;
+    sRen.setPixelRatio(dpr); sRen.setSize(stW, stH, false);
+    Object.assign(sCam, { left: 0, right: stW, top: 0, bottom: -stH }); sCam.updateProjectionMatrix();
+  }
+  function basis(o, a, b, c) {
+    const u = a.clone().sub(o).normalize(), v = b.clone().sub(c); v.addScaledVector(u, -v.dot(u)).normalize();
+    return new THREE.Matrix4().makeBasis(u, v, new THREE.Vector3().crossVectors(u, v));
+  }
+  // Which way the palm faces can't be read off the left/right label (it is wrong at times, and the demo hand uses the
+  // opposite convention to a real camera). The hand's own shape settles it: the thumb, and any curled fingertips, sit on
+  // the palm side of the plane through the wrist and knuckles. Same test on the model picks mirrored or not.
+  const palmSide = (W, M, I, P, pts) => {
+    const u = M.clone().sub(W), L = u.length() || 1; u.normalize();
+    const v = I.clone().sub(P); v.addScaledVector(u, -v.dot(u)).normalize();
+    const n = new THREE.Vector3().crossVectors(u, v), c = new THREE.Vector3();
+    for (const p of pts) c.add(p); c.multiplyScalar(1 / pts.length);
+    return n.dot(c.sub(W)) / L;
+  };
+  const MT = [[-0.0621, 0.3461, 0.0258], [-0.0707, 0.3709, 0.0317]];  // model thumb IP and tip
+  const chir = { mir: 0, want: 0, n: 0 };
+  function fitStage(src, G, dt) {
+    const wl = src.wl, tv = i => new THREE.Vector3(-wl[i].x, -wl[i].y, -wl[i].z);
+    const sd = palmSide(tv(0), tv(9), tv(5), tv(17), [3, 4, 4, 8, 12, 16, 20].map(tv));
+    const v3 = a => new THREE.Vector3(...a);
+    const sm = palmSide(v3(MW.W), v3(MW.M), v3(MW.I), v3(MW.P), MT.map(v3));  // unmirrored model; mirroring flips its sign
+    const want = Math.abs(sd) > 0.08 ? (Math.sign(sd) === Math.sign(sm) ? 1 : -1) : 0;
+    if (!chir.mir) chir.mir = want || (S.side === 'Right' ? 1 : -1);
+    else if (want && want !== chir.mir) { chir.n = want === chir.want ? chir.n + 1 : 1; chir.want = want; if (chir.n >= 4) { chir.mir = want; chir.n = 0; } }
+    else chir.n = 0;
+    const mir = chir.mir; sMir.scale.x = mir;
+    M3.shapeSide = mir === 1 ? 'Right' : 'Left';  // in measure()'s convention (checked against the demo hand)
+    const mv = a => new THREE.Vector3(a[0] * mir, a[1], a[2]);
+    const Rh = new THREE.Quaternion().setFromRotationMatrix(basis(tv(0), tv(9), tv(5), tv(17)).multiply(basis(mv(MW.W), mv(MW.M), mv(MW.I), mv(MW.P)).transpose()));
+    // Lay the forearm along wrist -> elbow (screen plane), then undo that turn at the wrist so the hand keeps its fitted pose.
+    const D = new THREE.Vector3(G.W.x - G.E.x, G.E.y - G.W.y, 0).normalize();
+    let Q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0).applyQuaternion(Rh), D);
+    const ang = 2 * Math.acos(clamp(Math.abs(Q.w), 0, 1)); if (ang > 1.2) Q = new THREE.Quaternion().slerp(Q, 1.2 / ang);
+    const rootQ = Q.clone().multiply(Rh);
+    const C = Rh.clone().invert().multiply(Q.clone().invert()).multiply(Rh);
+    const C0 = mir < 0 ? new THREE.Quaternion(C.x, -C.y, -C.z, C.w) : C;
+    const hr = rig.hand, handQ = hr ? hr.restW.clone().invert().multiply(C0).multiply(hr.restW) : new THREE.Quaternion();
+    // Scale: hand length and knuckle width each give pixels per metre; use whichever is less foreshortened, blended.
+    const hv = mv(MW.M).sub(mv(MW.W)).applyQuaternion(Rh), kv = mv(MW.I).sub(mv(MW.P)).applyQuaternion(Rh);
+    const hl2 = Math.hypot(hv.x, hv.y), kl2 = Math.hypot(kv.x, kv.y);
+    const sL = Math.hypot(G.P[9].x - G.P[0].x, G.P[9].y - G.P[0].y) / Math.max(0.035, hl2);
+    const sK = Math.hypot(G.P[5].x - G.P[17].x, G.P[5].y - G.P[17].y) / Math.max(0.02, kl2);
+    const wL = hl2 / hv.length(), wK = kl2 / (kv.length() || 1);
+    const s = (sL * wL + sK * wK) / Math.max(1e-6, wL + wK);
+    const pos = new THREE.Vector3(G.P[0].x, -G.P[0].y, 0).sub(mv(MW.W).applyQuaternion(rootQ).multiplyScalar(s));
+    const k = fitS.on ? 1 - Math.exp(-dt / 0.045) : 1;
+    fitS.q.slerp(rootQ, k); fitS.hand.slerp(handQ, k); fitS.p.lerp(pos, k); fitS.s += (s - fitS.s) * k; fitS.on = true;
+    sRoot.quaternion.copy(fitS.q); sRoot.position.copy(fitS.p); sRoot.scale.setScalar(fitS.s);
+  }
+  if (sRen) M3.stage = true;  // Hover to identify
+  const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
+  let ptrIn = false, pickDirty = false, hover = null, pickN = 0;
+  cvs.addEventListener('pointermove', e => { const r = cvs.getBoundingClientRect(); ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ptrIn = true; pickDirty = true; });
+  cvs.addEventListener('pointerleave', () => { ptrIn = false; pickDirty = true; });
+  const ORD = ['', '1st (thumb)', '2nd (index)', '3rd (middle)', '4th (ring)', '5th (little)'];
+  function partSub(p) {
+    if (p.key === 'MC') return ` · ${ORD[+p.suffix]}`;
+    if (p.key === 'phalanx') { const f = p.suffix[0], n = +p.suffix[1]; return f === 't' ? ` · thumb, ${n === 1 ? 'proximal' : 'distal'}` : ` · ${FNAME[f]}, ${['proximal', 'middle', 'distal'][n - 1]}`; }
+    return '';
+  }
+  function pick() {
+    pickDirty = false; let hit = null;
+    if (ptrIn && S.mode !== 'skin') { ray.setFromCamera(ptr, camera); const h = ray.intersectObjects(pickable.filter(o => o.visible), false); hit = h.length ? h[0].object.userData.part : null; }
+    if (hit !== hover) { hover = hit; if (hit) showInfo(hit.info, hit.actKey || hit.key, partSub(hit)); else showInfo(null); }
+  }
+
+  // Camera moves between regions and viewpoints
+  let tween = null;
+  function place(from, k, to) {
+    controls.target.lerpVectors(from.t, to.t, k);
+    const q = new THREE.Quaternion().setFromUnitVectors(from.dir, to.dir);
+    const dir = from.dir.clone().applyQuaternion(new THREE.Quaternion().slerp(q, k));
+    camera.position.copy(controls.target).addScaledVector(dir, from.d + (to.d - from.d) * k);
+  }
+  function aim(level, view, instant) {
+    const R = REGIONS[level], t = new THREE.Vector3(...R.focus), dir = new THREE.Vector3(...VIEWS[view]).normalize();
+    if (S.side === 'Left') { t.x *= -1; dir.x *= -1; }
+    const to = { t, dir, d: R.dist };
+    if (instant || reduceMotion) { place(to, 1, to); return; }
+    tween = { t0: performance.now(), to, from: { t: controls.target.clone(), dir: camera.position.clone().sub(controls.target).normalize(), d: camera.position.distanceTo(controls.target) } };
+  }
+  M3.focus = lv => aim(lv, M3.view);
+  $('#viewSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; M3.view = b.dataset.v; setSeg($('#viewSeg'), M3.view); aim(S.level, M3.view); });
+
+  // View mode and layer toggles from the stage apply here too
+  let applied = '';
+  function applyLook() {
+    const sig = S.mode + JSON.stringify(S.layers) + S.side; if (sig === applied) return; applied = sig;
+    root.scale.x = S.side === 'Left' ? -1 : 1; $('#mside').textContent = `${S.side} arm`;
+    const L = S.layers, xray = S.mode === 'xray', skinOnly = S.mode === 'skin';
+    for (const p of parts) {
+      const m = p.o.material;
+      p.o.visible = p.cat === 'skin' ? true : p.cat === 'nail' ? !xray : skinOnly ? false
+        : p.cat === 'muscle' ? L.muscles : p.cat === 'tendon' || p.cat === 'fascia' ? L.tendons : p.cat === 'bone' ? L.bones : L.nerves;
+      if (p.cat === 'skin') { m.opacity = S.mode === 'skin' ? 1 : xray ? 0.12 : 0.22; m.depthWrite = S.mode === 'skin'; m.color.set(xray ? 0x7fb4d4 : 0xc8957f); rimU.value = S.mode === 'skin' ? 0 : 1; }
+      else if (p.cat === 'bone') { p.baseE.set(xray ? 0x7aa6c8 : 0); p.baseEI = xray ? 0.55 : 0; m.color.set(xray ? 0xdfeefa : LOOK.bone[0]); }
+      else if (p.cat !== 'fascia' && p.cat !== 'nail') { m.opacity = xray ? 0.28 : 1; m.depthWrite = !xray; }
+    }
+    // On the stage the camera picture is the skin, so the model's own skin and nails stay hidden there.
+    for (const o of sParts) {
+      const c = o.name === 'Skin' ? 'skin' : PREFIX[o.name[0]];
+      o.visible = c === 'skin' || c === 'nail' ? false : c === 'muscle' ? L.muscles : c === 'tendon' || c === 'fascia' ? L.tendons : c === 'bone' ? L.bones : L.nerves;
+    }
+    sCvs.style.opacity = skinOnly ? '0.5' : '1';
+    hover = null; pickDirty = true;
+  }
+
+  const REST_C = new THREE.Color().setRGB(126 / 255, 44 / 255, 46 / 255, THREE.SRGBColorSpace);
+  const HOT_C = new THREE.Color().setRGB(1, 104 / 255, 66 / 255, THREE.SRGBColorSpace);
+  const TEN_C = new THREE.Color(0x8ce1f5), HOVER_C = new THREE.Color(0x8fd3df), tmpV = new THREE.Vector3();
+  // Name tags for the three hardest-working muscles, on the panel and on the stage
+  const tagEls = [], sTagEls = [], sMeshByName = {};
+  for (const o of sParts) sMeshByName[o.name] = o;
+  function hotMuscles(skinView) {
+    const list = [], seen = new Set();
+    if (!S.layers.muscles || skinView) return list;
+    const hot = parts.filter(p => p.cat === 'muscle' && p.actKey && act[p.actKey] > 0.3).sort((x, y) => act[y.actKey] - act[x.actKey]);
+    for (const p of hot) { if (seen.has(p.actKey)) continue; seen.add(p.actKey); list.push(p); if (list.length === 3) break; }
+    return list;
+  }
+  function placeTags(els, box, list, mesh, cam, w, h) {
+    const pos = list.map(p => { tmpV.copy(p.anchor).applyMatrix4(mesh(p).matrixWorld).project(cam); return { p, x: (tmpV.x * 0.5 + 0.5) * w, y: (0.5 - tmpV.y * 0.5) * h, on: Math.abs(tmpV.z) < 1 }; })
+      .sort((a, b) => a.y - b.y);
+    for (let i = 1; i < pos.length; i++) if (Math.abs(pos[i].x - pos[i - 1].x) < 90) pos[i].y = Math.max(pos[i].y, pos[i - 1].y + 19);
+    pos.forEach(({ p, x, y, on }, i) => {
+      let el = els[i]; if (!el) { el = document.createElement('div'); el.className = 'mtag'; box.appendChild(el); els[i] = el; }
+      el.style.display = on ? '' : 'none'; el.style.left = `${x}px`; el.style.top = `${y}px`;
+      el.textContent = labelFor(p.actKey); el.style.opacity = (0.55 + 0.45 * act[p.actKey]).toFixed(2);
+    });
+    for (let i = list.length; i < els.length; i++) els[i].style.display = 'none';
+  }
+  function drawTags3() {
+    const r = cvs.getBoundingClientRect();
+    placeTags(tagEls, tagBox, hotMuscles(S.mode === 'skin'), p => p.o, camera, r.width, r.height);
+  }
+
+  M3.frame = (now, dt, src, m, G) => {
+    applyLook();
+    const tg = src && m ? poseTargets(src.wl, m, G && G.hasElbow) : {};
+    const k = 1 - Math.exp(-dt / 0.06);
+    for (const nm in rig) { const r = rig[nm]; r.cur += ((tg[nm] || 0) - r.cur) * k; r.b.quaternion.copy(r.rest).multiply(tmpQ.setFromAxisAngle(r.flex, r.cur)); }
+    const t = now / 1000;
+    for (const p of parts) {
+      const mat = p.o.material; if (p.cat === 'skin') continue;
+      if (p === hover) { mat.emissive.copy(HOVER_C); mat.emissiveIntensity = 0.5; continue; }
+      if (!p.actKey) { mat.emissive.copy(p.baseE); mat.emissiveIntensity = p.baseEI; continue; }
+      const a = act[p.actKey] || 0;
+      if (p.cat === 'muscle') { mat.color.copy(REST_C).lerp(HOT_C, a); mat.emissive.copy(HOT_C); mat.emissiveIntensity = 0.85 * a; }
+      else { mat.emissive.copy(TEN_C); mat.emissiveIntensity = a > 0.04 ? a * (0.75 + (reduceMotion ? 0 : 0.25 * Math.sin(t * 9))) : 0; }
+    }
+    if (tween) { const u = clamp((now - tween.t0) / 650); place(tween.from, smooth(0, 1, u), tween.to); if (u >= 1) tween = null; }
+    controls.update();
+    if (pickDirty || (ptrIn && ++pickN % 8 === 0)) pick();
+    renderer.render(scene, camera);
+    drawTags3();
+    if (sRen) {
+      stageSize();
+      if (G && src) {
+        fitStage(src, G, dt);
+        for (const nm in rig) {
+          const r = rig[nm]; if (!r.sb) continue;
+          r.sb.quaternion.copy(r.rest).multiply(nm === 'hand' ? fitS.hand : tmpQ.setFromAxisAngle(r.flex, r.cur));
+        }
+        sRen.render(sScene, sCam);
+        placeTags(sTagEls, sTagBox, hotMuscles(false), p => sMeshByName[p.o.name] || p.o, sCam, stW, stH);
+      } else if (fitS.on) { fitS.on = false; chir.mir = 0; M3.shapeSide = null; sRen.clear(); placeTags(sTagEls, sTagBox, [], null, sCam, stW, stH); }
+    }
+  };
+  aim(S.level, M3.view, true);
+  state.style.display = 'none'; M3.ready = true;
+}
+
+// ================= main loop =================
+let last = performance.now(), lastUI = 0, lastSrcT = -1;
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (!stW || !stH || !flesh.width) { resize(); return; }
+  try { step(now); } catch (err) { console.error(err); }
+}
+function step(now) {
+  const dt = clamp((now - last) / 1000, 0.001, 0.1); last = now;
+  detect(now);
+  let src = null;
+  if (S.running) { if (live.lm && now - live.t < 350) src = { lm: live.lm, wl: live.wl, side: live.side, elbow: live.elbow && now - live.elbowT < 700 ? live.elbow : null,
+    fw: video.videoWidth || 1280, fh: video.videoHeight || 720, t: live.t }; }
+  else src = demoSource(now);
+  let G = null, m = null;
+  if (src) {
+    // Detect: trust the hand's shape (see palmSide in the 3D section) over the tracker's left/right label once it is known.
+    S.side = S.armPref === 'auto' ? (S.running && M3.shapeSide) || src.side : S.armPref;
+    setCover(src.fw, src.fh);
+    G = buildGeo(src.lm.map(toScreen), src.elbow ? toScreen(src.elbow) : null);
+    if (src.t !== lastSrcT) { lastM = measure(src.wl, S.side === 'Right', G); updateVel(lastM, src.t); lastSrcT = src.t; }
+    m = lastM;
+  } else { prevM = null; vel = {}; }
+  const T = m ? targets(m, vel) : {};
+  for (const k of ACT_KEYS) { const tg = T[k] || 0, cur = act[k]; act[k] = cur + (tg - cur) * (1 - Math.exp(-dt / (tg > cur ? 0.05 : 0.32))); }
+  renderStage(G, m, dt);
+  M3.frame(now, dt, src, m, G);
+  if (now - lastUI > 66) {
+    lastUI = now;
+    const fl = m ? { t: m.tF, i: m.iF, m: m.mF, r: m.rF, p: m.pF } : {};
+    for (const k in gaugeEls) gaugeEls[k].style.height = `${Math.round((fl[k] || 0) * 100)}%`;
+    for (const r of rowEls) { let mx = 0; r.keys.forEach(([k], i) => { const v = act[k] || 0; mx = Math.max(mx, v); r.fills[i].style.width = `${Math.round(v * 100)}%`; }); r.el.classList.toggle('on', mx > 0.3); }
+    $('#readout').innerHTML = m ? `<b>${m.palm > 0.35 ? 'Palm' : m.palm < -0.35 ? 'Back of hand' : 'Side view'}</b> · ${S.side.toLowerCase()} arm<br>${G.hasElbow ? 'Elbow found' : 'Elbow estimated'}${G.hasElbow ? ` · wrist ${m.wf > 0.15 ? 'bent' : m.wf < -0.15 ? 'raised' : 'neutral'}` : ''}` : 'No hand in view';
+  }
+}
+resize(); setLevel('mid'); requestAnimationFrame(frame); initModel();
+</script>
+</body>
+</html>
