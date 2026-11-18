@@ -13,7 +13,7 @@
 :root{
   --ground:#0e1519; --panel:#141d22; --raise:#1b262c; --line:#28363e;
   --text:#e3e9ea; --muted:#8fa1a8; --plane:#8fd3df;
-  --muscle:#b8443e; --hot:#ff6a42; --tendon:#e4eaec; --bone:#ecdfc4; --nerve:#e2b33c; --artery:#d0393c; --vein:#4d74bd; --fat:#b39a5e;
+  --muscle:#b8443e; --hot:#ff9a4d; --active:#4fd8ff; --tendon:#e4eaec; --bone:#ecdfc4; --nerve:#e2b33c; --artery:#d0393c; --vein:#4d74bd; --fat:#b39a5e;
   --f-display:'Newsreader', Georgia, 'Times New Roman', serif;
   --f-body:'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-mono:'IBM Plex Mono', ui-monospace, Consolas, monospace;
@@ -57,7 +57,7 @@ button,select{font:inherit;color:inherit}
 .hud{position:absolute;left:12px;bottom:12px;display:flex;gap:10px;align-items:flex-end;background:rgba(12,19,23,.72);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
 .gauge{display:flex;flex-direction:column;align-items:center;gap:4px;font:500 10px/1 var(--f-mono);color:var(--muted)}
 .gauge .bar{width:7px;height:44px;border-radius:4px;background:#24323a;position:relative;overflow:hidden}
-.gauge .bar i{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(var(--hot),var(--muscle));border-radius:4px}
+.gauge .bar i{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(var(--active),#1f6fb8);border-radius:4px;box-shadow:0 0 6px var(--active)}
 .readout{position:absolute;right:12px;bottom:12px;font:11px/1.5 var(--f-mono);color:var(--muted);text-align:right;background:rgba(12,19,23,.72);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
 .readout b{color:var(--text);font-weight:500}
 
@@ -86,7 +86,7 @@ select{background:var(--panel);border:1px solid var(--line);border-radius:6px;pa
 .mviews button[aria-pressed="true"]{color:var(--text);border-color:var(--plane)}
 .mfoot{position:absolute;left:8px;right:8px;bottom:8px;display:flex;justify-content:space-between;gap:8px;font:10px/1.3 var(--f-mono);color:rgba(143,161,168,.8);pointer-events:none}
 .mtags{position:absolute;inset:0;pointer-events:none;overflow:hidden}
-.mtag{position:absolute;transform:translate(-50%,-140%);font:500 10px/1 var(--f-mono);color:#ffd2c4;background:rgba(12,19,23,.84);border:1px solid rgba(255,150,120,.55);border-radius:4px;padding:3px 5px;white-space:nowrap}
+.mtag{position:absolute;transform:translate(-50%,-140%);font:500 10px/1 var(--f-mono);color:#c9f3ff;background:rgba(12,19,23,.84);border:1px solid rgba(79,216,255,.6);box-shadow:0 0 8px rgba(79,216,255,.35);border-radius:4px;padding:3px 5px;white-space:nowrap}
 .info{min-height:76px;border-left:2px solid var(--line);padding:2px 0 2px 12px}
 .info h4{margin:0;font-size:15px;font-weight:600}
 .info p{margin:2px 0 0;font-size:13px;color:var(--muted);max-width:60ch}
@@ -101,11 +101,12 @@ select{background:var(--panel);border:1px solid var(--line);border-radius:6px;pa
 .row .nm{min-width:0}
 .row .nm b{font-weight:500;font-size:13px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .nm small{font:11px/1.3 var(--f-mono);color:var(--muted)}
-.row.on .nm b{color:#ffd7cc}
+.row.on .nm b{color:#c9f3ff}
+.row.on .bars .t i{box-shadow:0 0 6px var(--active)}
 .bars{display:flex;gap:3px;align-items:flex-end}
 .bars .b{flex:1;display:flex;flex-direction:column;gap:2px;align-items:center}
 .bars .t{width:100%;height:8px;background:#24323a;border-radius:2px;overflow:hidden}
-.bars .t i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--muscle),var(--hot))}
+.bars .t i{display:block;height:100%;width:0;background:linear-gradient(90deg,#1f6fb8,var(--active))}
 .bars .b small{font:9px/1 var(--f-mono);color:var(--muted)}
 footer{color:var(--muted);font-size:12.5px;max-width:110ch;border-top:1px solid var(--line);padding-top:12px}
 footer b{color:var(--text);font-weight:500}
@@ -184,7 +185,7 @@ kbd{font:11px var(--f-mono);border:1px solid var(--line);border-radius:3px;paddi
       <div class="info" id="info"></div>
       <div class="legend">
         <span><i style="background:var(--muscle)"></i>Muscle</span>
-        <span><i style="background:var(--hot);box-shadow:0 0 6px var(--hot)"></i>Working</span>
+        <span><i style="background:var(--active);box-shadow:0 0 6px var(--active)"></i>Working</span>
         <span><i style="background:var(--tendon)"></i>Tendon</span>
         <span><i style="background:var(--bone)"></i>Bone</span>
         <span><i style="background:var(--nerve)"></i>Nerve</span>
@@ -220,6 +221,8 @@ const dot3 = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
 const cross3 = (a, b) => ({ x: a.y * b.z - a.z * b.y, y: a.z * b.x - a.x * b.z, z: a.x * b.y - a.y * b.x });
 const ang3 = (u, w) => Math.acos(clamp(dot3(norm3(u), norm3(w)), -1, 1));
 const bend3 = (a, b, c) => ang3(sub3(b, a), sub3(c, b));
+// How far the thumb's metacarpal (CMC -> MCP) leans toward the little finger, as an angle: + across the palm, - spread out.
+const thumbSwing = (cmc, mcp, idx, lit) => Math.asin(clamp(dot3(norm3(sub3(mcp, cmc)), norm3(sub3(lit, idx))), -1, 1));
 function rng(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -407,6 +410,25 @@ const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmar
 const POSE_MODEL = 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task';
 let handLM = null, poseLM = null, stream = null, lastVT = -1, frameN = 0;
 const live = { lm: null, wl: null, side: 'Right', sideVote: 0, t: 0, fresh: false, elbow: null, elbowT: 0 };
+// One-euro filter (Casiez et al., CHI 2012) on every landmark coordinate: heavy smoothing while a point is still (no jitter),
+// light smoothing while it moves (no lag). Speed is tracked per coordinate, so a moving thumb isn't held back by a still palm.
+function euro(minCut, beta) {
+  let x = null, dx = null, t0 = 0;
+  const alpha = (fc, dt) => 1 / (1 + 1 / (2 * Math.PI * fc * dt));
+  return {
+    reset() { x = null; },
+    run(pts, t) {
+      const v = pts.flatMap(p => [p.x, p.y, p.z]);
+      if (!x || t - t0 > 300) { x = v; dx = v.map(() => 0); }
+      else {
+        const dt = Math.max(0.004, (t - t0) / 1000), ad = alpha(1, dt);
+        for (let i = 0; i < v.length; i++) { dx[i] += ((v[i] - x[i]) / dt - dx[i]) * ad; x[i] += (v[i] - x[i]) * alpha(minCut + beta * Math.abs(dx[i]), dt); }
+      }
+      t0 = t;
+      return pts.map((_, i) => ({ x: x[3 * i], y: x[3 * i + 1], z: x[3 * i + 2] }));
+    } };
+}
+const lmF = euro(1.2, 12), wlF = euro(1.2, 40);  // image coords (frame widths/s) and world coords (m/s)
 
 async function toggleCamera() {
   if (S.running) { stopCamera(); return; }
@@ -424,7 +446,7 @@ async function toggleCamera() {
         catch { return await Cls.createFromOptions(fileset, { ...opts, baseOptions: { ...opts.baseOptions, delegate: 'CPU' } }); }
       };
       handLM = await make(vision.HandLandmarker, { baseOptions: { modelAssetPath: HAND_MODEL }, runningMode: 'VIDEO', numHands: 1,
-        minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 });
+        minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.6 });
       make(vision.PoseLandmarker, { baseOptions: { modelAssetPath: POSE_MODEL }, runningMode: 'VIDEO', numPoses: 1 })
         .then(p => { poseLM = p; }).catch(() => {});
     }
@@ -442,7 +464,7 @@ async function toggleCamera() {
 }
 function stopCamera() {
   if (stream) stream.getTracks().forEach(t => t.stop());
-  stream = null; S.running = false; live.lm = null; prevM = null; video.srcObject = null;
+  stream = null; S.running = false; live.lm = null; prevM = null; video.srcObject = null; lmF.reset(); wlF.reset();
   setBtns('Turn on camera'); setStatus('demo', 'Demo hand'); $('#notice').hidden = false;
 }
 function setBtns(t) { $('#camBtn').textContent = t; }
@@ -454,11 +476,7 @@ function detect(now) {
   lastVT = video.currentTime;
   const r = handLM.detectForVideo(video, now);
   if (r.landmarks && r.landmarks.length) {
-    const lm = r.landmarks[0], wl = r.worldLandmarks[0];
-    const fresh = live.lm && now - live.t < 300;
-    const a = 0.55;
-    live.lm = fresh ? live.lm.map((p, i) => ({ x: p.x + (lm[i].x - p.x) * a, y: p.y + (lm[i].y - p.y) * a, z: p.z + (lm[i].z - p.z) * a })) : lm.map(p => ({ ...p }));
-    live.wl = fresh ? live.wl.map((p, i) => ({ x: p.x + (wl[i].x - p.x) * a, y: p.y + (wl[i].y - p.y) * a, z: p.z + (wl[i].z - p.z) * a })) : wl.map(p => ({ ...p }));
+    live.lm = lmF.run(r.landmarks[0], now); live.wl = wlF.run(r.worldLandmarks[0], now);
     // MediaPipe labels assume a mirrored image; our frames are not mirrored, so swap.
     const h = (r.handedness || r.handednesses || [])[0]?.[0]?.categoryName;
     if (h) { live.sideVote = clamp(live.sideVote + (h === 'Left' ? 1 : -1), -8, 8); live.side = live.sideVote >= 0 ? 'Right' : 'Left'; }
@@ -557,6 +575,13 @@ function measure(Wl, isRight, G) {
   const n = norm3(cross3(sub3(Wl[5], Wl[0]), sub3(Wl[17], Wl[0])));
   const out = isRight ? n : { x: -n.x, y: -n.y, z: -n.z }; // points out of the palm
   m.palm = -out.z; m.wf = 0; m.wd = 0;
+  // Positions against the palm plane (+ toward the palm side).
+  const palmward = v => dot3(norm3(v), out);
+  m.tPalmar = palmward(sub3(Wl[2], Wl[1]));                    // thumb metacarpal in front of the palm, or behind it
+  m.tRetro = clamp((-m.tPalmar - 0.05) / 0.35);                 // retroposition: thumb drawn back behind the palm
+  m.tAcross = clamp((thumbSwing(Wl[1], Wl[2], Wl[5], Wl[17]) + 0.35) / 0.7);
+  m.oppPose = m.tAcross * clamp((m.tPalmar + 0.1) / 0.5);       // opposition held as a pose: across the palm and in front of it
+  for (const k in FING) { const [a, b] = FING[k]; m[k + 'Hx'] = clamp((-palmward(sub3(Wl[b], Wl[a])) - 0.1) / 0.4); }  // knuckle bent back (flat hand)
   if (G && G.hasElbow) {
     const d = dot2(G.hdir, G.u); const b = { x: G.hdir.x - G.u.x * d, y: G.hdir.y - G.u.y * d };
     m.wf = clamp(dot2(b, { x: -out.x, y: out.y }) / 0.55, -1, 1);
@@ -576,22 +601,23 @@ function targets(m, v) {
     const vp = dz(V(k + 'F')), vn = dz(-V(k + 'F'));
     T['FDS_' + k] = clamp(1.15 * pos(m[k + 'P'] - 0.2) + 0.5 * vp);
     T['FDP_' + k] = clamp(1.2 * pos(m[k + 'D'] - 0.18) + 0.35 * pos(m[k + 'P'] - 0.35) + 0.45 * vp);
-    T['ED_' + k] = clamp(0.6 * vn + (m[k + 'F'] < 0.06 ? 0.1 : 0));
+    T['ED_' + k] = clamp(0.6 * vn + 0.8 * m[k + 'Hx'] + (m[k + 'F'] < 0.06 ? 0.15 : 0));
     T['LUM_' + k] = clamp(1.4 * pos(m[k + 'M'] - 0.2) * pos(1 - 1.8 * m[k + 'P']) + 0.3 * dz(V(k + 'M')));
     meanF += m[k + 'F'] / 4;
   }
   const grip = clamp((meanF - 0.3) / 0.5);
   T.EIP = T.ED_i * 0.85; T.EDM = T.ED_p * 0.9;
   T.FPL = clamp(1.2 * pos(m.tIP - 0.2) + 0.5 * dz(V('tF')));
-  T.EPL = clamp(0.65 * dz(-V('tF')) + 0.3 * dz(-V('tIP')));
-  T.EPB = clamp(0.45 * dz(-V('tF')) + 0.4 * dz(V('tAbd')));
+  T.EPL = clamp(0.65 * dz(-V('tF')) + 0.3 * dz(-V('tIP')) + 0.9 * m.tRetro);
+  T.EPB = clamp(0.45 * dz(-V('tF')) + 0.4 * dz(V('tAbd')) + 0.4 * m.tRetro);
   T.APL = clamp(0.9 * pos(m.tAbd - 0.45) + 0.6 * dz(V('tAbd')));
   T.ADP = clamp(0.9 * pos(m.pinch - 0.3) + 0.5 * dz(-V('tAbd')));
-  T.THEN = clamp(pos(m.opp - 0.25) + 0.35 * T.FPL + 0.35 * T.APL + 0.3 * m.pinch);
+  T.THEN = clamp(pos(m.opp - 0.25) + 0.8 * m.oppPose + 0.4 * pos(m.tPalmar - 0.35) + 0.35 * T.FPL + 0.35 * T.APL + 0.3 * m.pinch);
   T.HYPO = clamp(0.8 * pos(m.opp - 0.3) + 0.6 * pos(m.g3 - 0.5) + 0.3 * T.FDP_p);
   const gs = [m.g1, (m.g1 + m.g2) / 2, (m.g2 + m.g3) / 2, m.g3], gv = [V('g1'), (V('g1') + V('g2')) / 2, (V('g2') + V('g3')) / 2, V('g3')];
   for (let i = 0; i < 4; i++) T['DI' + (i + 1)] = clamp(1.1 * pos(gs[i] - 0.45) + 0.5 * dz(gv[i]) + (i === 0 ? 0.5 * pos(m.pinch - 0.3) : 0));
-  [['PI1', 'g1'], ['PI2', 'g2'], ['PI3', 'g3']].forEach(([k, g]) => { T[k] = clamp(0.6 * dz(-V(g)) + (m[g] < 0.15 ? 0.12 : 0)); });
+  // Adduction: palmar interossei pull the fingers together; held straight and closed they keep working.
+  [['PI1', 'g1'], ['PI2', 'g2'], ['PI3', 'g3']].forEach(([k, g]) => { T[k] = clamp(0.6 * dz(-V(g)) + 0.4 * clamp((0.2 - m[g]) / 0.2) * clamp(1 - 3 * meanF)); });
   const wf = m.wf, wd = m.wd, vw = V('wf');
   T.FCR = clamp(0.9 * pos(wf - 0.1) + 0.6 * pos(wd - 0.1) + 0.3 * dz(vw) + 0.12 * grip);
   T.FCU = clamp(0.9 * pos(wf - 0.1) + 0.7 * pos(-wd - 0.1) + 0.3 * dz(vw) + 0.15 * grip);
@@ -672,8 +698,9 @@ function smoothPath(ctx, pts) {
   for (let i = 1; i < pts.length - 1; i++) { const m = lerp2(pts[i], pts[i + 1], 0.5); ctx.quadraticCurveTo(pts[i].x, pts[i].y, m.x, m.y); }
   const l = pts[pts.length - 1]; ctx.lineTo(l.x, l.y);
 }
-const REST = [126, 44, 46], HOT = [255, 104, 66];
-const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+const REST = [126, 44, 46];
+// Display curve: lifts light activity so a gently working muscle still visibly lights up. Drawing only; the numbers stay as measured.
+const glow = a => Math.pow(clamp(a), 0.55);
 const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 const MODE = { skin: { m: 0.5, t: 0.75, b: 0.45, n: 0.7 }, atlas: { m: 0.88, t: 0.95, b: 0.85, n: 0.9 }, xray: { m: 0.28, t: 0.45, b: 1, n: 0.5 } };
 
@@ -693,13 +720,17 @@ function spindle(G, it, a) {
 function fillMuscle(ctx, shp, a, alpha, mode) {
   const { Ls, Rs } = shp; ctx.beginPath(); ctx.moveTo(Ls[0].x, Ls[0].y);
   for (const p of Ls) ctx.lineTo(p.x, p.y); for (let i = Rs.length - 1; i >= 0; i--) ctx.lineTo(Rs[i].x, Rs[i].y); ctx.closePath();
-  const col = mode === 'xray' ? mix([90, 130, 160], [255, 140, 90], a) : mix(REST, HOT, a);
-  ctx.fillStyle = rgba(col, alpha * (0.5 + 0.5 * a));
-  if (a > 0.05) { ctx.shadowColor = `rgba(255,110,60,${(0.85 * a * alpha).toFixed(3)})`; ctx.shadowBlur = 26 * a; }
-  ctx.fill(); ctx.shadowBlur = 0;
+  const g = glow(a), col = mode === 'xray' ? [90, 130, 160] : REST;
+  ctx.fillStyle = rgba(col, alpha * 0.75); ctx.fill();
   ctx.strokeStyle = `rgba(255,205,190,${0.3 * alpha})`; ctx.lineWidth = 1; ctx.stroke();
-  ctx.strokeStyle = `rgba(255,200,180,${(0.14 + 0.3 * a) * alpha})`; ctx.lineWidth = 0.8;
-  for (const f of [0.3, 0.5, 0.7]) { ctx.beginPath(); for (let i = 0; i < Ls.length; i++) { const p = lerp2(Ls[i], Rs[i], f); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } ctx.stroke(); }
+  // Fibre lines: plain at rest; while the muscle works they become jagged electric-blue filaments that crackle along it.
+  const live = a > 0.03, tt = reduceMotion ? 0 : performance.now() / 1000;
+  ctx.lineWidth = live ? 1.3 : 0.8; ctx.strokeStyle = live ? `rgba(140,230,255,${(g * alpha).toFixed(3)})` : `rgba(255,200,180,${0.14 * alpha})`;
+  if (live) { ctx.shadowColor = `rgba(70,190,255,${(g * alpha).toFixed(3)})`; ctx.shadowBlur = 12 * g; }
+  for (const f of [0.22, 0.4, 0.6, 0.78]) { ctx.beginPath(); for (let i = 0; i < Ls.length; i++) {
+    const jit = live ? 0.07 * Math.sin(i * 2.7 + tt * 23 + f * 40) * Math.sin(i * 1.3 - tt * 17) : 0;
+    const p = lerp2(Ls[i], Rs[i], clamp(f + jit)); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } ctx.stroke(); }
+  ctx.shadowBlur = 0;
 }
 function drawTendon(ctx, it, a, alpha, hl, dt) {
   const w = Math.max(1.5, it.tw * hl);
@@ -709,8 +740,8 @@ function drawTendon(ctx, it, a, alpha, hl, dt) {
   if (a > 0.04) {
     phase[it.key] = (phase[it.key] || 0) + (reduceMotion ? 0 : dt * (20 + 60 * a));
     smoothPath(ctx, it.tendon); ctx.setLineDash([w * 1.5, w * 1.5]); ctx.lineDashOffset = phase[it.key];
-    ctx.strokeStyle = `rgba(165,236,250,${(a * alpha).toFixed(3)})`; ctx.lineWidth = w * 0.85;
-    ctx.shadowColor = `rgba(140,225,245,${(a * alpha).toFixed(3)})`; ctx.shadowBlur = 12 * a; ctx.stroke();
+    const g = glow(a); ctx.strokeStyle = `rgba(185,242,255,${(g * alpha).toFixed(3)})`; ctx.lineWidth = w * 0.85;
+    ctx.shadowColor = `rgba(140,225,245,${(g * alpha).toFixed(3)})`; ctx.shadowBlur = 18 * g; ctx.stroke();
     ctx.setLineDash([]); ctx.shadowBlur = 0;
   }
 }
@@ -781,7 +812,7 @@ function drawTags(ctx, list) {
   for (const e of top) {
     const txt = labelFor(e.key); const tw = ctx.measureText(txt).width; const right = e.pt.x < stW * 0.7;
     const lx = clamp(e.pt.x + (right ? 34 : -34 - tw - 12), 6, stW - tw - 18), ly = clamp(e.pt.y - 24, 14, stH - 14);
-    ctx.strokeStyle = `rgba(255,170,140,${e.a})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(e.pt.x, e.pt.y); ctx.lineTo(right ? lx : lx + tw + 12, ly); ctx.stroke();
+    ctx.strokeStyle = `rgba(110,215,255,${e.a})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(e.pt.x, e.pt.y); ctx.lineTo(right ? lx : lx + tw + 12, ly); ctx.stroke();
     ctx.fillStyle = 'rgba(12,19,23,0.82)'; ctx.beginPath(); ctx.roundRect(lx, ly - 10, tw + 12, 20, 4); ctx.fill();
     ctx.fillStyle = `rgba(255,220,208,${0.5 + 0.5 * e.a})`; ctx.fillText(txt, lx + 6, ly + 0.5);
   }
@@ -830,21 +861,8 @@ const VIEWS = { palm: [-0.3, 0.06, 1], back: [0.3, 0.06, -1], thumb: [-1, 0.05, 
 const FINGER_BONE = { i: 'index', m: 'middle', r: 'ring', p: 'little' };
 const M3 = { ready: false, stage: false, view: 'palm', frame() {}, focus() {} };
 
-// Joint angles for the model's rig, read straight off the tracked (or demo) hand.
-function poseTargets(wl, m, hasElbow) {
-  const T = {};
-  for (const k in FING) {
-    const [a, b, c, d] = FING[k], n = FINGER_BONE[k];
-    T[n + '_1'] = clamp(bend3(wl[0], wl[a], wl[b]) - 0.18, 0, 1.6);
-    T[n + '_2'] = clamp(bend3(wl[a], wl[b], wl[c]), 0, 1.9);
-    T[n + '_3'] = clamp(bend3(wl[b], wl[c], wl[d]), 0, 1.4);
-  }
-  T.thumb_1 = 0.6 * m.opp;
-  T.thumb_2 = clamp(bend3(wl[1], wl[2], wl[3]) - 0.1, 0, 1.1);
-  T.thumb_3 = clamp(bend3(wl[2], wl[3], wl[4]), 0, 1.4);
-  T.hand = hasElbow ? 0.7 * m.wf : 0;
-  return T;
-}
+// Wrist angle for the model's rig. Fingers and thumb are aimed bone by bone at the tracked segments (aimFingers in initModel).
+function poseTargets(m, hasElbow) { return { hand: hasElbow ? 0.7 * m.wf : 0 }; }
 
 async function initModel() {
   const wrap = $('#modelWrap'), cvs = $('#model'), state = $('#mstate'), tagBox = $('#mtags');
@@ -898,7 +916,37 @@ async function initModel() {
   fiberTint.colorSpace = THREE.SRGBColorSpace;
   const LOOK = { muscle: [0x7e2c2e, 0.55], tendon: [0xe4eaec, 0.3], bone: [0xecdfc4, 0.62], nerve: [0xe2b33c, 0.45], artery: [0xd0393c, 0.4],
     vein: [0x4d74bd, 0.42], fascia: [0xd5dde0, 0.5], nail: [0xd9a99b, 0.35] };
-  const rimU = { value: 1 };
+  const rimU = { value: 1 }, timeU = { value: 0 };
+  // Working muscles: jagged electric-blue filaments run along the fibres and crackle, over the muscle's own colour.
+  // In these meshes uv.x runs along each muscle (about its length) and uv.y wraps once around it.
+  function electrify(m) {
+    const act = m.userData.act = { value: 0 };
+    m.onBeforeCompile = sh => {
+      sh.uniforms.uAct = act; sh.uniforms.uTime = timeU;
+      sh.vertexShader = 'varying vec2 vLnUv;\n' + sh.vertexShader.replace('#include <uv_vertex>', '#include <uv_vertex>\n  vLnUv = uv;');
+      sh.fragmentShader = `uniform float uAct;
+uniform float uTime;
+varying vec2 vLnUv;
+float lnHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float lnNoise(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(lnHash(i), lnHash(i + vec2(1.0, 0.0)), f.x), mix(lnHash(i + vec2(0.0, 1.0)), lnHash(i + vec2(1.0, 1.0)), f.x), f.y); }
+` + sh.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>
+  if (uAct > 0.3) {
+    float u = vLnUv.x, t = uTime, n = 4.0;                       // n filaments around the muscle
+    float lane = floor(vLnUv.y * n);
+    float x = vLnUv.y * n + (lnNoise(vec2(u * 3.0 + lane * 5.3, t * 2.0)) - 0.5) * 0.7
+                          + (lnNoise(vec2(u * 12.0 + lane * 9.1, t * 7.0)) - 0.5) * 0.3;   // kinks that crawl
+    float d = abs(fract(x) - 0.5);
+    float px = fwidth(x);                                         // keep lines at least a pixel wide when the muscle is small on screen
+    float core = smoothstep(max(0.035, 1.2 * px), 0.0, d), halo = smoothstep(max(0.12, 3.0 * px), 0.0, d);
+    float flick = 0.5 + 0.5 * lnNoise(vec2(lane * 3.7, t * 14.0));
+    float surge = 0.5 + 0.5 * sin(u * 5.0 - t * 7.0 + lane * 1.9);           // pulses running along the fibres
+    float on = smoothstep(0.3, 0.6, uAct) * (0.6 + 0.8 * uAct);   // only clearly working muscles carry current
+    vec3 elec = vec3(0.75, 0.97, 1.0) * core * 2.4 + vec3(0.15, 0.6, 1.0) * halo * 0.45;
+    gl_FragColor.rgb += elec * flick * (0.35 + 0.65 * surge) * on;
+  }`);
+    };
+  }
   function material(cat) {
     if (cat === 'skin') {  // glass skin: faint face-on, denser at the silhouette
       // The skin is cut off just below the elbow; vElbow fades that end out so it reads as a cut, not a cap.
@@ -918,7 +966,7 @@ async function initModel() {
     const coat = { muscle: 0.45, tendon: 0.7, nerve: 0.35, artery: 0.6, vein: 0.6, bone: 0.12, fascia: 0.5, nail: 0.8 }[cat];
     const m = new THREE.MeshPhysicalMaterial({ color: col, roughness: rough, metalness: 0, clearcoat: coat, clearcoatRoughness: 0.35,
       transparent: cat !== 'bone', side: cat === 'fascia' ? THREE.DoubleSide : THREE.FrontSide });
-    if (cat === 'muscle') { m.bumpMap = fibers; m.bumpScale = 2.2; m.map = fiberTint; m.sheen = 0.35; m.sheenColor = new THREE.Color(0xff9a8a); m.sheenRoughness = 0.6; }
+    if (cat === 'muscle') { m.bumpMap = fibers; m.bumpScale = 2.2; m.map = fiberTint; m.sheen = 0.35; m.sheenColor = new THREE.Color(0xff9a8a); m.sheenRoughness = 0.6; electrify(m); }
     if (cat === 'tendon') { m.sheen = 0.5; m.sheenColor = new THREE.Color(0xdff6ff); }
     if (cat === 'fascia') { m.opacity = 0.6; m.depthWrite = false; }
     return m;
@@ -993,7 +1041,8 @@ async function initModel() {
   };
   const MT = [[-0.0621, 0.3461, 0.0258], [-0.0707, 0.3709, 0.0317]];  // model thumb IP and tip
   const chir = { mir: 0, want: 0, n: 0 };
-  function fitStage(src, G, dt) {
+  // Palm frame: which way the tracked hand is mirrored against the model, and the turn Rh that lays the model's palm on it.
+  function palmFrame(src) {
     const wl = src.wl, tv = i => new THREE.Vector3(-wl[i].x, -wl[i].y, -wl[i].z);
     const sd = palmSide(tv(0), tv(9), tv(5), tv(17), [3, 4, 4, 8, 12, 16, 20].map(tv));
     const v3 = a => new THREE.Vector3(...a);
@@ -1002,10 +1051,14 @@ async function initModel() {
     if (!chir.mir) chir.mir = want || (S.side === 'Right' ? 1 : -1);
     else if (want && want !== chir.mir) { chir.n = want === chir.want ? chir.n + 1 : 1; chir.want = want; if (chir.n >= 4) { chir.mir = want; chir.n = 0; } }
     else chir.n = 0;
-    const mir = chir.mir; sMir.scale.x = mir;
+    const mir = chir.mir;
     M3.shapeSide = mir === 1 ? 'Right' : 'Left';  // in measure()'s convention (checked against the demo hand)
     const mv = a => new THREE.Vector3(a[0] * mir, a[1], a[2]);
     const Rh = new THREE.Quaternion().setFromRotationMatrix(basis(tv(0), tv(9), tv(5), tv(17)).multiply(basis(mv(MW.W), mv(MW.M), mv(MW.I), mv(MW.P)).transpose()));
+    return { Rh, inv: Rh.clone().invert(), mir, mv };
+  }
+  function fitStage(src, G, dt, pf) {
+    const { Rh, mir, mv } = pf; sMir.scale.x = mir;
     // Lay the forearm along wrist -> elbow (screen plane), then undo that turn at the wrist so the hand keeps its fitted pose.
     const D = new THREE.Vector3(G.W.x - G.E.x, G.E.y - G.W.y, 0).normalize();
     let Q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0).applyQuaternion(Rh), D);
@@ -1022,9 +1075,98 @@ async function initModel() {
     const wL = hl2 / hv.length(), wK = kl2 / (kv.length() || 1);
     const s = (sL * wL + sK * wK) / Math.max(1e-6, wL + wK);
     const pos = new THREE.Vector3(G.P[0].x, -G.P[0].y, 0).sub(mv(MW.W).applyQuaternion(rootQ).multiplyScalar(s));
-    const k = fitS.on ? 1 - Math.exp(-dt / 0.045) : 1;
+    const k = fitS.on ? 1 - Math.exp(-dt / 0.025) : 1;  // light: the landmarks are already filtered
     fitS.q.slerp(rootQ, k); fitS.hand.slerp(handQ, k); fitS.p.lerp(pos, k); fitS.s += (s - fitS.s) * k; fitS.on = true;
     sRoot.quaternion.copy(fitS.q); sRoot.position.copy(fitS.p); sRoot.scale.setScalar(fitS.s);
+  }
+  // Fingers and thumb follow the tracked hand segment by segment: each bone turns to point along its landmark pair, held to
+  // that joint's range. The middle and end joints are hinges; the knuckles and the thumb base also swing sideways. That carries
+  // spread, adduction, opposition, retroposition, curling and flattening without a separate rule for each.
+  const Y = new THREE.Vector3(0, 1, 0);  // bones point along their own +y
+  const CHAIN = { thumb: [1, 2, 3, 4], index: [5, 6, 7, 8], middle: [9, 10, 11, 12], ring: [13, 14, 15, 16], little: [17, 18, 19, 20] };
+  const LIM = { thumb: [[-0.9, 1.8, 1.2], [-0.4, 1.2, 0.25], [-0.5, 1.5, 0]],  // [least flex, most flex, sideways limit], radians
+    finger: [[-0.6, 1.7, 0.45], [-0.1, 2.0, 0], [-0.3, 1.5, 0]], little: [[-0.6, 1.7, 0.6], [-0.1, 2.0, 0], [-0.3, 1.5, 0]] };
+  const palmLen = new THREE.Vector3(...MW.M).distanceTo(new THREE.Vector3(...MW.W)), wristM = new THREE.Vector3(...MW.W);
+  if (rig.hand) rig.hand.b.updateWorldMatrix(true, false);
+  const handInv = rig.hand ? rig.hand.b.matrixWorld.clone().invert() : new THREE.Matrix4();  // model frame -> hand bone, at rest
+  for (const [f, ids] of Object.entries(CHAIN)) for (let j = 0, L = 0; j < 3; j++) {
+    const r = rig[`${f}_${j + 1}`], next = rig[`${f}_${j + 2}`]; if (!r) continue;
+    const fl = r.flex.clone().addScaledVector(Y, -r.flex.dot(Y)).normalize();
+    L = next ? next.b.position.length() : L * (f === 'thumb' ? 0.85 : 0.8);  // the end bone has no child; take it from the one before
+    r.aim = { a: ids[j], b: ids[j + 1], f: fl, n: new THREE.Vector3().crossVectors(fl, Y), lim: (LIM[f] || LIM.finger)[j],
+      len: next ? next.b.position.length() / palmLen : 0, L, q: new THREE.Quaternion(), ratio: 1, ss: 1,
+      p0: j === 0 ? r.b.position.clone() : null, base: j === 0 && rig.hand ? r.b.position.clone().applyMatrix4(rig.hand.b.matrixWorld) : null,
+      off: new THREE.Vector3() };
+  }
+  const pW = new THREE.Quaternion(), bInv = new THREE.Quaternion(), aimQ = new THREE.Quaternion(), dv = new THREE.Vector3(), pv = new THREE.Vector3();
+  function aimFingers(wl, pf, k, dt) {
+    const kLen = 1 - Math.exp(-dt / 0.5);  // segment lengths don't change, so they settle slowly
+    const seg = (a, b) => Math.hypot(wl[b].x - wl[a].x, wl[b].y - wl[a].y, wl[b].z - wl[a].z);
+    const palmT = wl ? seg(0, 9) : 0;
+    for (const f in CHAIN) {
+      pW.copy(rig.hand ? rig.hand.restW : aimQ.identity()); let prev = 1;
+      for (let j = 0; j < 3; j++) {
+        const r = rig[`${f}_${j + 1}`]; if (!r) break; const A = r.aim;
+        // Stage copy only: move each knuckle and the thumb base onto the user's (hands differ, and the palm cups and flattens).
+        if (A.p0) {
+          if (pf && wl && palmT > 1e-4) {
+            pv.set(wl[0].x - wl[A.a].x, wl[0].y - wl[A.a].y, wl[0].z - wl[A.a].z).applyQuaternion(pf.inv); pv.x *= pf.mir;
+            pv.multiplyScalar(palmLen / palmT).add(wristM).applyMatrix4(handInv).sub(A.p0).clampLength(0, 0.25 * palmLen);
+            A.off.lerp(pv, k);
+          } else A.off.multiplyScalar(1 - k);
+        }
+        aimQ.identity();
+        if (pf && wl) {
+          // tracked segment -> model frame (hand at rest) -> this bone's rest frame
+          dv.set(wl[A.a].x - wl[A.b].x, wl[A.a].y - wl[A.b].y, wl[A.a].z - wl[A.b].z).applyQuaternion(pf.inv); dv.x *= pf.mir;
+          dv.applyQuaternion(bInv.copy(pW).multiply(r.rest).invert()).normalize();
+          const fa = clamp(Math.atan2(dv.dot(A.n), dv.dot(Y)), A.lim[0], A.lim[1]);
+          if (A.lim[2]) {
+            const sa = clamp(Math.asin(clamp(dv.dot(A.f), -1, 1)), -A.lim[2], A.lim[2]);
+            dv.copy(Y).multiplyScalar(Math.cos(sa) * Math.cos(fa)).addScaledVector(A.n, Math.cos(sa) * Math.sin(fa)).addScaledVector(A.f, Math.sin(sa));
+            aimQ.setFromUnitVectors(Y, dv);
+          } else aimQ.setFromAxisAngle(A.f, fa);
+          if (A.len && palmT > 1e-4) A.ratio += (clamp(seg(A.a, A.b) / palmT / A.len, 0.65, 1.35) - A.ratio) * kLen;
+        } else A.ratio += (1 - A.ratio) * kLen;
+        A.q.slerp(aimQ, k);
+        r.b.quaternion.copy(r.rest).multiply(A.q);
+        pW.multiply(r.b.quaternion);
+        // Stage copy only: scale each bone so the finger's joints land on the user's, relative to the bone before it.
+        const cur = A.len ? A.ratio : prev; A.ss = cur / prev; prev = cur;
+      }
+    }
+    if (pf && wl && palmT > 1e-4) contact(wl, palmT);
+  }
+  // Contact: when the thumb tip meets a fingertip on the tracked hand, make them meet on the model too. The model's proportions
+  // and joint limits otherwise leave a gap, worst for the little finger. A few CCD steps on both chains close it to the
+  // tracked gap (so a near-touch stays a near-touch). Only the joint rotations change; the next frame starts again from the aim.
+  const TIP = { index: 8, middle: 12, ring: 16, little: 20 }, restHandQ = rig.hand ? rig.hand.restW : new THREE.Quaternion();
+  const chainPts = f => {  // joint positions and tip in the model frame (hand at rest), with each bone's world turn
+    const pts = [], qs = []; let p = rig[`${f}_1`].aim.base.clone(), q = restHandQ.clone();
+    for (let j = 0; j < 3; j++) { const r = rig[`${f}_${j + 1}`]; q = q.clone().multiply(r.b.quaternion); pts.push(p.clone()); qs.push(q);
+      p = p.clone().addScaledVector(Y.clone().applyQuaternion(q), r.aim.L); }
+    pts.push(p); return { pts, qs };
+  };
+  function nudge(f, j, to, w) {  // turn bone j of chain f so the chain's tip swings toward `to`, by fraction w
+    const { pts, qs } = chainPts(f), J = pts[j], a = pts[3].clone().sub(J), b = to.clone().sub(J);
+    if (a.lengthSq() < 1e-10 || b.lengthSq() < 1e-10) return;
+    const q = new THREE.Quaternion().slerp(new THREE.Quaternion().setFromUnitVectors(a.normalize(), b.normalize()), w);
+    const parent = j ? qs[j - 1] : restHandQ;
+    rig[`${f}_${j + 1}`].b.quaternion.copy(parent.clone().invert().multiply(q).multiply(qs[j]));
+  }
+  function contact(wl, palmT) {
+    if (!rig.thumb_3 || !rig.thumb_1.aim.base) return;
+    let best = null, bd = Infinity;
+    for (const f in TIP) { if (!rig[`${f}_3`]) continue; const i = TIP[f], d = Math.hypot(wl[4].x - wl[i].x, wl[4].y - wl[i].y, wl[4].z - wl[i].z) / palmT; if (d < bd) { bd = d; best = f; } }
+    const w = clamp((0.6 - bd) / 0.3); if (!best || w <= 0) return;
+    const gap = bd * palmLen * 0.9;
+    for (let it = 0; it < 4; it++) {
+      const tT = chainPts('thumb').pts[3], fT = chainPts(best).pts[3], mid = tT.clone().lerp(fT, 0.5), dir = tT.clone().sub(fT);
+      if (dir.lengthSq() < 1e-12) break; dir.normalize();
+      const goT = mid.clone().addScaledVector(dir, gap / 2), goF = mid.clone().addScaledVector(dir, -gap / 2);
+      for (const j of [1, 0]) nudge('thumb', j, goT, 0.6 * w);
+      for (const j of [1, 0]) nudge(best, j, goF, 0.5 * w);
+    }
   }
   if (sRen) M3.stage = true;  // Hover to identify
   const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
@@ -1085,7 +1227,6 @@ async function initModel() {
   }
 
   const REST_C = new THREE.Color().setRGB(126 / 255, 44 / 255, 46 / 255, THREE.SRGBColorSpace);
-  const HOT_C = new THREE.Color().setRGB(1, 104 / 255, 66 / 255, THREE.SRGBColorSpace);
   const TEN_C = new THREE.Color(0x8ce1f5), HOVER_C = new THREE.Color(0x8fd3df), tmpV = new THREE.Vector3();
   // Name tags for the three hardest-working muscles, on the panel and on the stage
   const tagEls = [], sTagEls = [], sMeshByName = {};
@@ -1115,17 +1256,20 @@ async function initModel() {
 
   M3.frame = (now, dt, src, m, G) => {
     applyLook();
-    const tg = src && m ? poseTargets(src.wl, m, G && G.hasElbow) : {};
-    const k = 1 - Math.exp(-dt / 0.06);
-    for (const nm in rig) { const r = rig[nm]; r.cur += ((tg[nm] || 0) - r.cur) * k; r.b.quaternion.copy(r.rest).multiply(tmpQ.setFromAxisAngle(r.flex, r.cur)); }
-    const t = now / 1000;
+    const tg = src && m ? poseTargets(m, G && G.hasElbow) : {};
+    const k = 1 - Math.exp(-dt / 0.035);
+    const pf = src && G ? palmFrame(src) : null;
+    for (const nm in rig) { const r = rig[nm]; if (r.aim) continue; r.cur += ((tg[nm] || 0) - r.cur) * k; r.b.quaternion.copy(r.rest).multiply(tmpQ.setFromAxisAngle(r.flex, r.cur)); }
+    aimFingers(src && src.wl, pf, k, dt);
+    const t = now / 1000; timeU.value = reduceMotion ? 0 : t % 1000;
     for (const p of parts) {
       const mat = p.o.material; if (p.cat === 'skin') continue;
       if (p === hover) { mat.emissive.copy(HOVER_C); mat.emissiveIntensity = 0.5; continue; }
       if (!p.actKey) { mat.emissive.copy(p.baseE); mat.emissiveIntensity = p.baseEI; continue; }
       const a = act[p.actKey] || 0;
-      if (p.cat === 'muscle') { mat.color.copy(REST_C).lerp(HOT_C, a); mat.emissive.copy(HOT_C); mat.emissiveIntensity = 0.85 * a; }
-      else { mat.emissive.copy(TEN_C); mat.emissiveIntensity = a > 0.04 ? a * (0.75 + (reduceMotion ? 0 : 0.25 * Math.sin(t * 9))) : 0; }
+      const g = glow(a);
+      if (p.cat === 'muscle') { mat.color.copy(REST_C); mat.emissiveIntensity = 0; mat.userData.act.value = g; }
+      else { mat.emissive.copy(TEN_C); mat.emissiveIntensity = a > 0.03 ? 1.5 * g * (0.8 + (reduceMotion ? 0 : 0.2 * Math.sin(t * 9))) : 0; }
     }
     if (tween) { const u = clamp((now - tween.t0) / 650); place(tween.from, smooth(0, 1, u), tween.to); if (u >= 1) tween = null; }
     controls.update();
@@ -1135,10 +1279,11 @@ async function initModel() {
     if (sRen) {
       stageSize();
       if (G && src) {
-        fitStage(src, G, dt);
+        fitStage(src, G, dt, pf);
         for (const nm in rig) {
           const r = rig[nm]; if (!r.sb) continue;
-          r.sb.quaternion.copy(r.rest).multiply(nm === 'hand' ? fitS.hand : tmpQ.setFromAxisAngle(r.flex, r.cur));
+          if (nm === 'hand') r.sb.quaternion.copy(r.rest).multiply(fitS.hand);
+          else { r.sb.quaternion.copy(r.b.quaternion); if (r.aim) { r.sb.scale.setScalar(r.aim.ss); if (r.aim.p0) r.sb.position.copy(r.aim.p0).add(r.aim.off); } }
         }
         sRen.render(sScene, sCam);
         placeTags(sTagEls, sTagBox, hotMuscles(false), p => sMeshByName[p.o.name] || p.o, sCam, stW, stH);
